@@ -31,7 +31,8 @@ nonisolated struct LinuxDistribution: Sendable {
         LinuxDistribution(
             id: "fedora", family: .fedora,
             image: { try await fedoraImage(release: "44") },
-            packages: ["@workstation-product-environment", "spice-vdagent"],
+            // kernel-modules: the cloud image's kernel-core leaves out the sound drivers.
+            packages: ["@workstation-product-environment", "spice-vdagent", "kernel-modules"],
             gdmConfig: "/etc/gdm/custom.conf", adminGroup: "wheel"),
         LinuxDistribution(
             id: "debian", family: .debian,
