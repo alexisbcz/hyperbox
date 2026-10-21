@@ -23,6 +23,11 @@ targets:
           - Info.plist
           - Hyperbox.entitlements
       - path: Shared
+      - path: Tools/hyperbox-tools/Install Hyperbox Tools.command
+        buildPhase:
+          copyFiles:
+            destination: resources
+            subpath: guest
     dependencies:
       - package: Sparkle
       # The `hyperbox` command line tool, at Contents/Resources/bin/hyperbox.
@@ -30,6 +35,11 @@ targets:
         copy:
           destination: resources
           subpath: bin
+      # Hyperbox Tools for macOS guests, at Contents/Resources/guest/, which macOS machines see as a shared folder.
+      - target: hyperbox-tools
+        copy:
+          destination: resources
+          subpath: guest
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: dev.alexis.Hyperbox
@@ -57,6 +67,24 @@ targets:
       base:
         PRODUCT_NAME: hyperbox
         PRODUCT_BUNDLE_IDENTIFIER: dev.alexis.Hyperbox.cli
+        CODE_SIGN_IDENTITY: "-"
+        SKIP_INSTALL: YES
+        SWIFT_APPROACHABLE_CONCURRENCY: YES
+  # The agent inside macOS guests: runs commands, shares the clipboard, receives dropped files.
+  # It runs on the guest, so it targets older macOS than the app does.
+  hyperbox-tools:
+    type: tool
+    platform: macOS
+    deploymentTarget: "14.0"
+    sources:
+      - path: Tools/hyperbox-tools
+        excludes:
+          - "*.command"
+    settings:
+      base:
+        PRODUCT_NAME: hyperbox-tools
+        PRODUCT_BUNDLE_IDENTIFIER: dev.alexis.Hyperbox.tools
+        ARCHS: arm64
         CODE_SIGN_IDENTITY: "-"
         SKIP_INSTALL: YES
         SWIFT_APPROACHABLE_CONCURRENCY: YES

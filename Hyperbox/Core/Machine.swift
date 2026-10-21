@@ -78,8 +78,9 @@ final class Machine: NSObject {
             let vm = VZVirtualMachine(configuration: try VirtualMachineBuilder.make(config, bundle: bundle, extras: extras))
             vm.delegate = self
             virtualMachine = vm
-            try await vm.start()
+            if let options = MacSetup.startOptions(for: config) { try await vm.start(options: options) } else { try await vm.start() }
             state = .running
+            MacSetup.installToolsWhenReady(self)
             if config.install?.kind == .cloudInit { state = .installing }
         } catch {
             fail(error)

@@ -151,7 +151,9 @@ private struct MachineDetail: View {
                         .foregroundStyle(.red)
                 }
                 if state == .installing, let progress = status?.progress {
-                    ProgressView(value: progress) { Text("Installing") }
+                    ProgressView(value: progress) {
+                        Text("Installing \(entry.config.os.label)… \(Int(progress * 100))%").monospacedDigit()
+                    }
                 }
                 MachineSettingsForm(config: Binding(
                     get: { entry.config },

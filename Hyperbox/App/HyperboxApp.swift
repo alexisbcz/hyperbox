@@ -39,6 +39,9 @@ final class LibraryDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         _ = Updater.shared
         Task { await AgentIntegrations.repair() }
+        #if DEBUG
+        MacTestHook.runIfRequested()
+        #endif
     }
 
     func application(_ application: NSApplication, open urls: [URL]) {

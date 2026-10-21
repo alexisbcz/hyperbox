@@ -147,6 +147,9 @@ enum VirtualMachineBuilder {
             while directories[name] != nil { name = "\(folder.name) \(n)"; n += 1 }
             directories[name] = VZSharedDirectory(url: URL(fileURLWithPath: folder.path), readOnly: folder.readOnly)
         }
+        if config.os == .macOS, let tools = HyperboxTools.folder {
+            directories[HyperboxTools.shareName] = VZSharedDirectory(url: tools, readOnly: true)
+        }
         return VZMultipleDirectoryShare(directories: directories)
     }
 

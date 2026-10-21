@@ -59,14 +59,6 @@ enum MachineFactory {
     }
 }
 
-/// Fetches an IPSW and makes a macOS bundle ready for `MacInstaller`.
-enum MacProvisioner {
-    /// `ipsw` is a restore image you picked; nil downloads the latest one this Mac supports.
-    static func create(_ config: inout MachineConfig, ipsw: URL?, progress: @escaping MachineFactory.Progress) async throws -> URL {
-        throw ControlError("macOS machines aren't built yet.")
-    }
-}
-
 /// Fetches a Linux cloud image and sets up cloud-init to install a desktop on first boot.
 enum LinuxProvisioner {
     static func create(_ config: inout MachineConfig, entry: CatalogEntry, progress: @escaping MachineFactory.Progress) async throws -> URL {
