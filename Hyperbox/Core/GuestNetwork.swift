@@ -2,9 +2,10 @@ import Foundation
 
 /// A running machine's side of the NAT network: finds the guest's address, and runs its port forwards.
 ///
-/// The address comes from the DHCP lease for the machine's MAC address, rechecked every few seconds while
-/// it runs, so a reboot or a renewed lease shows up too. Forwards listen whenever the machine runs with its
-/// network connected, even before the guest has an address, so a port that's taken shows up right away.
+/// The address comes from the DHCP lease for the machine's MAC address, or the ARP table for a static one,
+/// rechecked every few seconds while it runs, so a reboot or a renewed lease shows up too. Forwards listen
+/// whenever the machine runs with its network connected, even before the guest has an address, so a port
+/// that's taken shows up right away.
 final class GuestNetwork {
     private unowned let machine: Machine
     private var timer: Timer?
@@ -42,7 +43,7 @@ final class GuestNetwork {
     private func refreshAddress() {
         let mac = machine.config.network.macAddress
         Task.detached {
-            let ip = DHCPLeases.address(for: mac)
+            let ip = DHCPLeases.address(for: mac) ?? DHCPLeases.addressFromARP(for: mac)
             await MainActor.run { [weak self] in
                 guard let self, self.active else { return }
                 self.setAddress(ip)
