@@ -111,18 +111,35 @@ def exec_command(request):
     process = subprocess.Popen(
         ["/bin/sh", "-c", command], stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
         cwd=env["HOME"] if os.path.isdir(env["HOME"]) else "/", env=env, start_new_session=True, **options)
+    # Read in threads and stop at the shell's exit, not at the pipes' end: a command that starts
+    # something in the background (an app, wl-copy) leaves it holding them open for as long as it runs.
+    out, err = bytearray(), bytearray()
+    readers = [threading.Thread(target=drain, args=(pipe, buffer), daemon=True)
+               for pipe, buffer in ((process.stdout, out), (process.stderr, err))]
+    for reader in readers:
+        reader.start()
     try:
-        stdout, stderr = process.communicate(timeout=timeout)
+        process.wait(timeout=timeout)
     except subprocess.TimeoutExpired:
         os.killpg(process.pid, signal.SIGKILL)
-        stdout, stderr = process.communicate()
-        stderr += ("\nhyperbox: timed out after %g seconds" % timeout).encode()
-        return {"ok": True, "exitCode": 124, "stdout": text(stdout), "stderr": text(stderr)}
-    return {"ok": True, "exitCode": process.returncode, "stdout": text(stdout), "stderr": text(stderr)}
+        process.wait()
+        for reader in readers:
+            reader.join(1)
+        return {"ok": True, "exitCode": 124, "stdout": text(out),
+                "stderr": text(err) + "\nhyperbox: timed out after %g seconds" % timeout}
+    for reader in readers:
+        reader.join(0.5)
+    return {"ok": True, "exitCode": process.returncode, "stdout": text(out), "stderr": text(err)}
+
+
+def drain(pipe, buffer):
+    for chunk in iter(lambda: pipe.read1(65536), b""):
+        if len(buffer) < MAX_OUTPUT:
+            buffer.extend(chunk)
 
 
 def text(data):
-    return data[:MAX_OUTPUT].decode("utf-8", errors="replace")
+    return bytes(data[:MAX_OUTPUT]).decode("utf-8", errors="replace")
 
 
 def resolve(path):
