@@ -25,7 +25,7 @@ enum GuestAgent {
         }
         let connection: VZVirtioSocketConnection
         do {
-            connection = try await device.connect(toPort: VirtualMachineBuilder.agentPort)
+            connection = try await connect(device, timeout: min(timeout, 10))
         } catch {
             throw ControlError("Hyperbox's agent isn't running in \(machine.config.name)\(machine.config.os == .macOS ? "; install Hyperbox Tools in the guest" : "") (\(error.localizedDescription)).")
         }
@@ -39,6 +39,31 @@ enum GuestAgent {
             throw ControlError(value["error"]?.string ?? "The guest refused \(request["op"]?.string ?? "the request").")
         }
         return value
+    }
+
+    /// Connecting can hang while the guest is still booting and nothing listens yet, so it gives up after `timeout`.
+    private static func connect(_ device: VZVirtioSocketDevice, timeout: TimeInterval) async throws -> VZVirtioSocketConnection {
+        final class Once { var done = false }
+        let once = Once()
+        return try await withCheckedThrowingContinuation { continuation in
+            device.connect(toPort: VirtualMachineBuilder.agentPort) { result in
+                // Virtualization calls back on the main queue, the machine's.
+                nonisolated(unsafe) let result = result
+                MainActor.assumeIsolated {
+                    guard !once.done else {
+                        if case .success(let late) = result { late.close() }
+                        return
+                    }
+                    once.done = true
+                    continuation.resume(with: result)
+                }
+            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + timeout) {
+                guard !once.done else { return }
+                once.done = true
+                continuation.resume(throwing: ControlError("no answer on vsock port \(VirtualMachineBuilder.agentPort)"))
+            }
+        }
     }
 
     /// Runs a shell command in the guest; see `ControlMethod.exec`.
