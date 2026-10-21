@@ -39,6 +39,10 @@ final class LibraryDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         _ = Updater.shared
         Containers.registerAgent()
+        #if DEBUG
+        // `-showContainers YES`: open on the Containers page, for screenshots.
+        if UserDefaults.standard.bool(forKey: "showContainers") { Library.shared.selection = Library.containersPage }
+        #endif
     }
 
     func application(_ application: NSApplication, open urls: [URL]) {

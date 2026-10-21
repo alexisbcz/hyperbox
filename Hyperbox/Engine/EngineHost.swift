@@ -5,9 +5,9 @@ import Virtualization
 /// `~/.hyperbox/docker.sock` (see `EngineAgent`). No windows and no Dock icon.
 ///
 /// Each connection to the socket boots the machine if it isn't running, then is piped to Docker's socket
-/// in the guest over vsock. While running it forwards published ports, sizes the memory balloon to what
-/// the guest uses, and after `EngineSettings.idleMinutes` with no containers running and no connections
-/// open, shuts the guest down and exits.
+/// in the guest over vsock. While running it forwards published ports, and after
+/// `EngineSettings.idleMinutes` with no containers running and no connections open, shuts the guest
+/// down and exits.
 final class EngineHost: NSObject {
     static func main() {
         signal(SIGPIPE, SIG_IGN)
@@ -291,15 +291,19 @@ final class EngineHost: NSObject {
             if (runningContainers ?? 0) > 0 || connections.value > 0 || (ports?.openConnections ?? 0) > 0 {
                 lastBusy = Date()
             } else if settings.idleMinutes > 0, Date().timeIntervalSince(lastBusy) > Double(settings.idleMinutes) * 60 {
-                quit(reason: "No containers for \(settings.idleMinutes) minutes.")
+                quit(reason: "No containers for \(settings.idleMinutes) min.")
                 return
             }
             writeStatus()
         }
     }
 
-    /// Asks the guest for its address and memory, and sizes the balloon: what it uses plus room to grow,
-    /// so a quiet engine gives memory back to the Mac and a busy one gets up to the setting.
+    /// Asks the guest how much memory it uses, for the status.
+    ///
+    /// The balloon device is there, but Hyperbox doesn't inflate it: measured on macOS 27, inflating it to
+    /// give 1 GB back made the VM process's footprint grow by 850 MB instead (the guest touches each page
+    /// it hands over, and Virtualization keeps them). What keeps memory low is stopping the engine when
+    /// it's idle, and booting fresh, which takes 4 seconds.
     private func refreshGuest() async {
         guard let fd = try? await connect(port: EngineSetup.infoPort) else { return }
         let reply = await Task.detached { () -> Data? in
@@ -308,23 +312,10 @@ final class EngineHost: NSObject {
             var reader = DockerHTTP.Reader(fd: fd)
             return (try? reader.line()).map { Data($0.utf8) }
         }.value
-        guard let reply, let info = try? JSONDecoder().decode(JSONValue.self, from: reply) else { return }
-        if let total = info["memTotal"]?.double, let available = info["memAvailable"]?.double {
-            var used = UInt64(max(0, total - available))
-            if let balloon = virtualMachine?.memoryBalloonDevices.first as? VZVirtioTraditionalMemoryBalloonDevice {
-                // Pages the balloon holds count as used in the guest; they're what it gave back.
-                let inflated = settings.memorySize > balloon.targetVirtualMachineMemorySize ? settings.memorySize - balloon.targetVirtualMachineMemorySize : 0
-                used = used > inflated ? used - inflated : 0
-                memoryUsed = used
-                let headroom: UInt64 = 768 << 20
-                let floor: UInt64 = 1 << 30
-                let target = min(settings.memorySize, max(floor, (used + headroom + (64 << 20) - 1) / (64 << 20) * (64 << 20)))
-                if balloon.targetVirtualMachineMemorySize != target { balloon.targetVirtualMachineMemorySize = target }
-                memoryLimit = target
-            } else {
-                memoryUsed = used
-            }
-        }
+        guard let reply, let info = try? JSONDecoder().decode(JSONValue.self, from: reply),
+              let total = info["memTotal"]?.double, let available = info["memAvailable"]?.double else { return }
+        memoryUsed = UInt64(max(0, total - available))
+        memoryLimit = UInt64(total)
     }
 
     /// Lists containers in the guest and forwards their published ports.

@@ -33,7 +33,7 @@ struct ContainersSettings: View {
             } header: {
                 Text("Engine")
             } footer: {
-                Text("Memory is the most the engine may use: it gives back what its containers don't need. Changes apply the next time the engine starts.")
+                Text("Memory is the most the engine may use; it stops when idle, which frees it all. Changes apply the next time the engine starts.")
                     .font(.caption).foregroundStyle(.secondary)
             }
             Section {

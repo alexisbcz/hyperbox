@@ -31,7 +31,7 @@ nonisolated enum EnginePaths {
 /// What you can change in Settings › Containers; applied the next time the engine starts.
 nonisolated struct EngineSettings: Codable, Equatable, Sendable {
     var cpuCount = 2
-    /// The most the engine may use; the balloon gives back what it doesn't.
+    /// The most the engine may use. Stopping when idle frees it all.
     var memorySize: UInt64 = 2 << 30
     /// Shut down after this many minutes with no containers running; 0 never does.
     var idleMinutes = 5
@@ -92,7 +92,7 @@ nonisolated struct EngineStatus: Codable, Equatable, Sendable {
     var bootSeconds: Double?
     /// What the guest is using, without its caches.
     var memoryUsed: UInt64?
-    /// What the balloon lets the guest have right now.
+    /// The memory the guest has.
     var memoryLimit: UInt64?
     var runningContainers: Int?
     /// Published ports forwarded from the Mac, like "5432/tcp".

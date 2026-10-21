@@ -186,6 +186,7 @@ private struct ContainerRow: View {
                 Divider()
                 Button("Remove", role: .destructive) { model.remove(container) }
             }
+            .labelStyle(.iconOnly)
             .menuStyle(.borderlessButton)
             .menuIndicator(.hidden)
             .fixedSize()
