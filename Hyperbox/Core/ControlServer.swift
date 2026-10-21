@@ -2,7 +2,7 @@ import Foundation
 
 /// Listens on a machine's socket and hands each request to `handler` on the main actor.
 /// See `ControlMethod` for the protocol.
-final class ControlServer: @unchecked Sendable {
+nonisolated final class ControlServer: @unchecked Sendable {
     typealias Handler = @MainActor (ControlRequest) async throws -> JSONValue
 
     private let path: String
