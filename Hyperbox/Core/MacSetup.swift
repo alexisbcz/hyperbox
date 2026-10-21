@@ -5,7 +5,8 @@ import Virtualization
 ///
 /// macOS 27 guests set themselves up from `VZMacGuestProvisioningOptions` on their first boot: they make
 /// the user in `config.guestUser`, skip Setup Assistant, log in, and turn on Remote Login. Hyperbox then
-/// signs in over SSH and runs `Install Hyperbox Tools.command` from the shared folder. Older guests show
+/// signs in over SSH, runs `Install Hyperbox Tools.command` from the shared folder, and turns Remote
+/// Login off again: from then on the agent does everything SSH could. Older guests show
 /// Setup Assistant as usual, and Hyperbox Tools installs with a double-click.
 enum MacSetup {
     /// A user like the one on the Mac, with a password of its own (shown in the machine's settings).
@@ -40,16 +41,30 @@ enum MacSetup {
         Task {
             // The first boot takes a few minutes to make the user and log in.
             let deadline = Date.now.addingTimeInterval(15 * 60)
+            var installed = false
             while Date.now < deadline, machine.state == .running || machine.state == .installing {
-                if await GuestAgent.ping(machine) != nil { return }
-                if let address = machine.ipAddress ?? DHCPLeases.address(for: machine.config.network.macAddress),
-                   (try? await install(at: address, user: user)) != nil {
-                    // Give launchd a moment, then check it took.
-                    try? await Task.sleep(for: .seconds(2))
-                    if await GuestAgent.ping(machine) != nil { return }
+                if await GuestAgent.ping(machine) != nil {
+                    if installed { await turnOffRemoteLogin(machine) }
+                    return
                 }
-                try? await Task.sleep(for: .seconds(10))
+                if !installed, let address = machine.ipAddress ?? DHCPLeases.address(for: machine.config.network.macAddress) {
+                    installed = (try? await install(at: address, user: user)) != nil
+                }
+                // launchd takes a moment to start the agent.
+                try? await Task.sleep(for: .seconds(installed ? 2 : 10))
             }
+        }
+    }
+
+    /// Remote Login was only for installing Hyperbox Tools, and an SSH server that takes a password is
+    /// best left off unless you want it; System Settings › General › Sharing turns it back on.
+    private static func turnOffRemoteLogin(_ machine: Machine) async {
+        let command = "launchctl disable system/com.openssh.sshd && { launchctl bootout system/com.openssh.sshd 2>/dev/null; true; }"
+        // The administrator helper has only just started, so give it a few tries.
+        for _ in 0..<10 {
+            let reply = try? await GuestAgent.request(["op": "exec", "command": .string(command), "admin": true, "timeout": 30], machine: machine, timeout: 35)
+            if reply?["exitCode"]?.int == 0 { return }
+            try? await Task.sleep(for: .seconds(2))
         }
     }
 
