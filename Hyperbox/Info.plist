@@ -7,7 +7,7 @@
 	<string>https://github.com/alexisbcz/hyperbox/releases/latest/download/appcast.xml</string>
 	<!-- Signs updates; the private half is the SPARKLE_PRIVATE_KEY secret. -->
 	<key>SUPublicEDKey</key>
-	<string>SPARKLE_PUBLIC_KEY</string>
+	<string>OlDbLsNmAfcAqnpRwAcj/O23hcAdGKF21vVCLMSguCc=</string>
 	<!-- Check daily without asking first. -->
 	<key>SUEnableAutomaticChecks</key>
 	<true/>

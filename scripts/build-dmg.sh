@@ -1,0 +1,78 @@
+#!/bin/bash
+#
+# Builds Hyperbox in Release and packs it into build/Hyperbox-<version>.dmg,
+# next to a .sha256 file.
+#
+#   scripts/build-dmg.sh [version]
+#
+# The version (a leading "v" is dropped) defaults to MARKETING_VERSION in project.yml.
+# Written for the bash 3.2 that ships with macOS.
+
+set -euo pipefail
+
+cd "$(dirname "$0")/.."
+
+APP_NAME="Hyperbox"
+export DEVELOPER_DIR=${DEVELOPER_DIR:-/Applications/Xcode.app/Contents/Developer}
+
+version=${1:-$(awk -F'"' '/MARKETING_VERSION/ { print $2 }' project.yml)}
+version=${version#v}
+[[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || {
+  echo "Error: '$version' isn't a version like 1.2.3." >&2
+  exit 1
+}
+
+xcodegen generate --quiet
+xcodebuild \
+  -project "$APP_NAME.xcodeproj" \
+  -scheme "$APP_NAME" \
+  -configuration Release \
+  -derivedDataPath build \
+  -quiet \
+  MARKETING_VERSION="$version" \
+  build
+
+app="build/Build/Products/Release/$APP_NAME.app"
+[[ -d "$app" ]] || {
+  echo "Error: the build finished but $app is missing." >&2
+  exit 1
+}
+[[ -x "$app/Contents/Resources/bin/hyperbox" ]] || {
+  echo "Error: the hyperbox command line tool is missing from $app." >&2
+  exit 1
+}
+built=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$app/Contents/Info.plist")
+[[ "$built" == "$version" ]] || {
+  echo "Error: the app says $built, expected $version." >&2
+  exit 1
+}
+# Sparkle compares build numbers, which project.yml ties to the version.
+build=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$app/Contents/Info.plist")
+[[ "$build" == "$version" ]] || {
+  echo "Error: the app's build number is $build, expected $version." >&2
+  exit 1
+}
+/usr/libexec/PlistBuddy -c 'Print :SUPublicEDKey' "$app/Contents/Info.plist" >/dev/null 2>&1 || {
+  echo "Error: the app has no SUPublicEDKey, so it couldn't verify updates." >&2
+  exit 1
+}
+codesign --verify --deep --strict "$app"
+# Without it, the Virtualization framework refuses to start a machine.
+codesign -d --entitlements - "$app" 2>/dev/null | grep -q com.apple.security.virtualization || {
+  echo "Error: $app isn't signed with the virtualization entitlement." >&2
+  exit 1
+}
+
+# The usual drag-to-install layout: the app next to a shortcut to /Applications.
+stage=build/dmg
+dmg="build/$APP_NAME-$version.dmg"
+rm -rf "${stage:?}" "$dmg"
+mkdir -p "$stage"
+ditto "$app" "$stage/$APP_NAME.app"
+ln -s /Applications "$stage/Applications"
+hdiutil create -volname "$APP_NAME" -srcfolder "$stage" -fs HFS+ -format UDZO -ov "$dmg" >/dev/null
+rm -rf "${stage:?}"
+
+(cd build && shasum -a 256 "$(basename "$dmg")" >"$(basename "$dmg").sha256")
+
+echo "Built $dmg"

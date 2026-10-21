@@ -9,8 +9,8 @@
     {
       "layers": [
         {
-          "image-name": "sparkle.svg",
-          "name": "sparkle",
+          "image-name": "box.svg",
+          "name": "box",
           "glass": true
         }
       ],

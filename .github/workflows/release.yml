@@ -1,0 +1,64 @@
+# Builds the Hyperbox DMG.
+#
+# Pushing a version tag publishes it as a GitHub Release:
+#
+#   git tag v0.1.0 && git push origin v0.1.0
+#
+# Running the workflow by hand only builds it, and attaches the DMG to the run.
+
+name: Release
+
+on:
+  push:
+    tags: ["v[0-9]+.[0-9]+.[0-9]+"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  dmg:
+    # The code needs Xcode 27, which only this runner image has.
+    runs-on: xcode-27
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_27.0.app/Contents/Developer
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install XcodeGen
+        run: brew install --quiet xcodegen
+
+      - name: Build the DMG
+        run: |
+          if [[ "$GITHUB_REF_TYPE" == tag ]]; then
+            scripts/build-dmg.sh "$GITHUB_REF_NAME"
+          else
+            scripts/build-dmg.sh
+          fi
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: Hyperbox-dmg
+          path: |
+            build/Hyperbox-*.dmg
+            build/Hyperbox-*.dmg.sha256
+
+      # A draft first, so the app never sees a latest release without its appcast.
+      - name: Draft the release
+        if: github.ref_type == 'tag'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" build/Hyperbox-*.dmg build/Hyperbox-*.dmg.sha256 --title "Hyperbox ${GITHUB_REF_NAME#v}" --generate-notes --draft
+
+      # Signs the DMG with the key from Sparkle's generate_keys (`generate_keys -x key.txt` exports it).
+      - name: Publish the appcast
+        if: github.ref_type == 'tag'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
+        run: |
+          [[ -n "$SPARKLE_PRIVATE_KEY" ]] || { echo "::error::The SPARKLE_PRIVATE_KEY secret isn't set."; exit 1; }
+          gh release view "$GITHUB_REF_NAME" --json body --jq .body >build/notes.md
+          scripts/build-appcast.sh build/Hyperbox-*.dmg build/notes.md
+          gh release upload "$GITHUB_REF_NAME" build/appcast.xml
+          gh release edit "$GITHUB_REF_NAME" --draft=false --latest
