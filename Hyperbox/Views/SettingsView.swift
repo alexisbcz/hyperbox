@@ -10,6 +10,9 @@ struct SettingsView: View {
             Tab("General", systemImage: "gearshape", value: "general") {
                 GeneralSettings()
             }
+            Tab("Containers", systemImage: "shippingbox", value: "containers") {
+                ContainersSettings()
+            }
         }
         .frame(width: 520)
     }

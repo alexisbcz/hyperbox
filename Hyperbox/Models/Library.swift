@@ -16,6 +16,8 @@ final class Library {
     /// Running machines by id; a machine missing here is stopped.
     private(set) var statuses: [UUID: MachineStatus] = [:]
     var selection: UUID?
+    /// The sidebar's selection for the Containers page, which isn't a machine.
+    static let containersPage = UUID(uuidString: "C0A7A1E5-0000-0000-0000-000000000000")!
     var showingNewMachine = false
     /// Bumped when a thumbnail may have changed, so views reload it.
     private(set) var thumbnailGeneration = 0
@@ -36,7 +38,7 @@ final class Library {
         }
         .sorted { $0.config.created < $1.config.created }
         refreshStatuses()
-        if selection == nil || !machines.contains(where: { $0.id == selection }) { selection = machines.first?.id }
+        if selection == nil || (selection != Self.containersPage && !machines.contains(where: { $0.id == selection })) { selection = machines.first?.id }
     }
 
     private func refreshStatuses() {

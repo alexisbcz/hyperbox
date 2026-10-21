@@ -14,10 +14,14 @@ struct LibraryView: View {
                             .contextMenu { MachineMenu(id: entry.id) }
                     }
                 }
+                Section("Containers") {
+                    ContainersRow()
+                        .tag(Library.containersPage)
+                }
             }
             .navigationSplitViewColumnWidth(min: 200, ideal: 230, max: 320)
             .overlay {
-                if library.machines.isEmpty {
+                if library.machines.isEmpty, library.selection != Library.containersPage {
                     ContentUnavailableView {
                         Label("No Machines", systemImage: "shippingbox")
                     } description: {
@@ -28,7 +32,9 @@ struct LibraryView: View {
                 }
             }
         } detail: {
-            if let entry = library.entry(library.selection) {
+            if library.selection == Library.containersPage {
+                ContainersView()
+            } else if let entry = library.entry(library.selection) {
                 MachineDetail(entry: entry)
                     .id(entry.id)
             } else {
