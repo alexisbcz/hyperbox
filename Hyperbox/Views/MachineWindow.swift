@@ -7,8 +7,9 @@ struct MachineWindow: View {
     @State private var showingSettings = false
 
     var body: some View {
+        // The screen starts below the toolbar, so the guest's own menu bar isn't hidden behind it.
         ZStack {
-            Color.black
+            Color.black.ignoresSafeArea()
             if machine.virtualMachine != nil {
                 MachineScreen(machine: machine)
             }
@@ -17,7 +18,6 @@ struct MachineWindow: View {
             }
         }
         .agentGlow(machine)
-        .ignoresSafeArea()
         .background(WindowFrameName(name: "machine-\(machine.id.uuidString)"))
         .navigationTitle(machine.config.name)
         .navigationSubtitle(machine.ipAddress ?? machine.state.label)
