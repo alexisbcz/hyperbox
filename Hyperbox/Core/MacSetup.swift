@@ -116,19 +116,3 @@ enum MacSetup {
         }
     }
 }
-
-/// The addresses macOS's NAT hands out to machines, from /var/db/dhcpd_leases.
-enum DHCPLeases {
-    static func address(for mac: String) -> String? {
-        guard let text = try? String(contentsOfFile: "/var/db/dhcpd_leases", encoding: .utf8) else { return nil }
-        // The file drops leading zeros: "1,2:a:3c:…".
-        let wanted = mac.lowercased().split(separator: ":").map { String(Int($0, radix: 16) ?? -1, radix: 16) }.joined(separator: ":")
-        var address: String?
-        for line in text.split(separator: "\n").map({ $0.trimmingCharacters(in: .whitespaces) }) {
-            if line.hasPrefix("ip_address=") { address = String(line.dropFirst("ip_address=".count)) }
-            if line.hasPrefix("hw_address="), line.split(separator: ",").last.map(String.init) == wanted { return address }
-            if line == "}" { address = nil }
-        }
-        return nil
-    }
-}
