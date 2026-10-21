@@ -62,11 +62,16 @@ final class MachineDelegate: NSObject, NSApplicationDelegate {
 
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows: Bool) -> Bool { true }
 
-    /// Quitting shuts the guest down first, and pulls the plug if it doesn't stop in time.
+    /// Quitting suspends the machine when it's set to (see `Machine.suspend`). Otherwise it shuts the
+    /// guest down first, and pulls the plug if it doesn't stop in time.
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
         guard let machine, machine.virtualMachine != nil else { return .terminateNow }
         Task {
             machine.saveThumbnail()
+            if await machine.suspend() {
+                sender.reply(toApplicationShouldTerminate: true)
+                return
+            }
             try? machine.stop()
             for _ in 0..<150 where machine.virtualMachine != nil { try? await Task.sleep(for: .milliseconds(100)) }
             await machine.forceStop()

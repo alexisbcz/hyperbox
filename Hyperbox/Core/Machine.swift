@@ -8,7 +8,8 @@ final class Machine: NSObject {
     let bundle: MachineBundle
     private(set) var config: MachineConfig
     private(set) var virtualMachine: VZVirtualMachine?
-    private(set) var state: MachineState = .stopped {
+    /// Snapshots set it too, while they save and restore.
+    var state: MachineState = .stopped {
         didSet { writeStatus() }
     }
     private(set) var message: String?
@@ -56,6 +57,7 @@ final class Machine: NSObject {
                 updateConfig { $0.install = nil }
             }
             state = .starting
+            try growDisk()
             var extras = VirtualMachineBuilder.Extras()
             if let install = config.install, install.kind == .iso, let source = install.source {
                 extras.installerISO = URL(fileURLWithPath: source)
@@ -63,7 +65,7 @@ final class Machine: NSObject {
             let vm = VZVirtualMachine(configuration: try VirtualMachineBuilder.make(config, bundle: bundle, extras: extras))
             vm.delegate = self
             virtualMachine = vm
-            try await vm.start()
+            try await bootOrResume(vm)
             state = .running
             if config.install?.kind == .cloudInit { state = .installing }
         } catch {
