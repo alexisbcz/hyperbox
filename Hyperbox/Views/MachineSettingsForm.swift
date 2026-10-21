@@ -16,6 +16,17 @@ struct MachineSettingsForm: View {
                 TextField("Name", text: $config.name)
             }
 
+            if let user = config.guestUser {
+                Section {
+                    LabeledContent("User", value: user.name)
+                    LabeledContent("Password") { Text(user.password).monospaced().textSelection(.enabled) }
+                } header: {
+                    Text("Account")
+                } footer: {
+                    Text("Hyperbox made this account when it set up \(config.os.label).").foregroundStyle(.secondary)
+                }
+            }
+
             Section {
                 Stepper("Processors: \(config.cpuCount)", value: $config.cpuCount, in: 1...maxCPUs)
                 Stepper("Memory: \(config.memorySize >> 30) GB", value: Binding(
@@ -84,11 +95,12 @@ struct MachineSettingsForm: View {
 }
 
 enum DisplayPreset: String, CaseIterable, Identifiable {
-    case hd, wuxga, qhd, retina5k
+    case screen, hd, wuxga, qhd, retina5k
     var id: String { rawValue }
 
     var display: MachineConfig.Display {
         switch self {
+        case .screen: .matchingMainScreen()
         case .hd: .init(width: 1920, height: 1080, pixelsPerInch: 110)
         case .wuxga: .init(width: 1920, height: 1200, pixelsPerInch: 144)
         case .qhd: .init(width: 2560, height: 1600, pixelsPerInch: 220)
@@ -96,10 +108,11 @@ enum DisplayPreset: String, CaseIterable, Identifiable {
         }
     }
 
-    var label: String { "\(display.width) × \(display.height)" }
+    var label: String { self == .screen ? "Sharp as This Mac" : "\(display.width) × \(display.height)" }
 
+    /// A size none of the presets has came from `matchingMainScreen`.
     static func matching(_ display: MachineConfig.Display) -> DisplayPreset {
-        allCases.first { $0.display.width == display.width && $0.display.height == display.height } ?? .wuxga
+        allCases.first { $0 != .screen && $0.display.width == display.width && $0.display.height == display.height } ?? .screen
     }
 }
 
