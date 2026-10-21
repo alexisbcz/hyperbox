@@ -83,10 +83,10 @@ enum VirtualMachineBuilder {
             console.ports[0] = port
             vm.consoleDevices = [console]
 
-            if let iso = extras.installerISO {
-                // On a controller of its own making, so "Eject Installer" can detach it while the machine runs.
+            if extras.installerISO != nil {
+                // The ISO is plugged into this controller once the machine starts (see `LinuxGuest`): only
+                // a drive attached at run time can be detached again, by "Eject Installer".
                 vm.usbControllers = [VZXHCIControllerConfiguration()]
-                storage.append(VZUSBMassStorageDeviceConfiguration(attachment: try VZDiskImageStorageDeviceAttachment(url: iso, readOnly: true)))
             }
             if FileManager.default.fileExists(atPath: bundle.seed.path) {
                 storage.append(VZVirtioBlockDeviceConfiguration(attachment: try VZDiskImageStorageDeviceAttachment(url: bundle.seed, readOnly: true)))

@@ -2,13 +2,15 @@ import SwiftUI
 import Virtualization
 
 /// What a running Linux machine needs beyond booting: following an automatic install to the end,
-/// and ejecting an installer ISO once it has done its job.
+/// and plugging in, then ejecting, an installer ISO.
 ///
-/// Virtualization restarts a Linux guest that reboots in place, without stopping it, so an installer's
-/// final reboot comes back up with the ISO still attached. Installers put the new system first in the
-/// EFI boot order, so it boots the disk anyway; the ISO is then ejected the next time the machine
-/// starts or stops with more than `installedDiskSize` on its disk. A live session that never installed
-/// leaves the disk empty and keeps its ISO. "Eject Installer" detaches it at once, while running.
+/// The ISO is a USB drive plugged in as the machine starts, rather than one in its configuration,
+/// because only a drive attached at run time can be detached again. Virtualization restarts a Linux
+/// guest that reboots in place, without stopping it, so an installer's final reboot comes back up with
+/// the ISO still plugged in; installers put the new system first in the EFI boot order, so it boots the
+/// disk anyway. The ISO then stays out from the next time the machine starts or stops with more than
+/// `installedDiskSize` on its disk. A live session that never installed leaves the disk empty and keeps
+/// its ISO. "Eject Installer" unplugs it at once.
 enum LinuxGuest {
     static let installedDiskSize: Int64 = 64 << 20
 
@@ -18,10 +20,12 @@ enum LinuxGuest {
     /// Call when the machine has booted.
     static func started(_ machine: Machine) {
         guard machine.config.os == .linux, let vm = machine.virtualMachine else { return }
-        // The machine was built with the ISO attached; with a system already on the disk, detach it
-        // before the firmware picks something to boot.
-        if machine.config.install?.kind == .iso, diskUsage(machine.bundle.disk) > installedDiskSize {
-            Task { await ejectInstaller(machine) }
+        if let install = machine.config.install, install.kind == .iso, let source = install.source {
+            if diskUsage(machine.bundle.disk) > installedDiskSize {
+                machine.updateConfig { $0.install = nil }
+            } else {
+                attachInstaller(URL(fileURLWithPath: source), to: vm, machine: machine)
+            }
         }
         if machine.config.install?.kind == .cloudInit {
             followInstall(machine, vm: vm)
@@ -50,6 +54,20 @@ enum LinuxGuest {
     /// Stops attaching the ISO for the next boot once the guest has written a system to its disk.
     private static func ejectIfInstalled(_ machine: Machine) {
         if diskUsage(machine.bundle.disk) > installedDiskSize { machine.updateConfig { $0.install = nil } }
+    }
+
+    /// Plugs the ISO in as a USB drive, right as the firmware starts looking for something to boot.
+    private static func attachInstaller(_ iso: URL, to vm: VZVirtualMachine, machine: Machine) {
+        do {
+            guard let controller = vm.usbControllers.first else { throw ControlError("The machine has no USB controller.") }
+            let drive = VZUSBMassStorageDevice(configuration: VZUSBMassStorageDeviceConfiguration(
+                attachment: try VZDiskImageStorageDeviceAttachment(url: iso, readOnly: true)))
+            controller.attach(device: drive) { error in
+                if let error { MainActor.assumeIsolated { machine.fail(error) } }
+            }
+        } catch {
+            machine.fail(error)
+        }
     }
 
     static func ejectInstaller(_ machine: Machine) async {
