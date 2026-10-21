@@ -55,6 +55,9 @@ final class MachineDelegate: NSObject, NSApplicationDelegate {
         NSApp.applicationIconImage = DockIcon.image(for: machine.config)
         machine.listen()
         clipboard = ClipboardSync(machine)
+        #if DEBUG
+        MacTestHook.dropIfRequested(machine)
+        #endif
         Task { await machine.start() }
     }
 
