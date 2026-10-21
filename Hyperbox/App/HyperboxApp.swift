@@ -39,8 +39,11 @@ final class LibraryDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         _ = Updater.shared
         Task { await AgentIntegrations.repair() }
+        Containers.registerAgent()
         #if DEBUG
         MacTestHook.runIfRequested()
+        // `-showContainers YES`: open on the Containers page, for screenshots.
+        if UserDefaults.standard.bool(forKey: "showContainers") { Library.shared.selection = Library.containersPage }
         #endif
     }
 

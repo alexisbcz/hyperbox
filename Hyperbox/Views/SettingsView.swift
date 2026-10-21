@@ -13,6 +13,9 @@ struct SettingsView: View {
             Tab("Agents", systemImage: "sparkles", value: "agents") {
                 AgentsSettings()
             }
+            Tab("Containers", systemImage: "shippingbox", value: "containers") {
+                ContainersSettings()
+            }
         }
         .frame(width: 520)
     }

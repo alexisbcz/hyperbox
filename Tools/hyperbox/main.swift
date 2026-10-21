@@ -15,7 +15,8 @@ let commands: [Command] = [
     .exec, .screenshot,
     // For AI agents: MCP.swift
     .mcp,
-    // containers: see Containers.swift
+    // Docker: Containers.swift
+    .containers,
 ]
 
 func usage() -> String {
