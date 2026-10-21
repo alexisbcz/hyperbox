@@ -28,7 +28,10 @@ final class GuestNetwork {
         if active {
             if timer == nil {
                 timer = Timer.scheduledTimer(withTimeInterval: 3, repeats: true) { [weak self] _ in
-                    MainActor.assumeIsolated { self?.refreshAddress() }
+                    MainActor.assumeIsolated {
+                        self?.refreshAddress()
+                        self?.retryFailedForwards()
+                    }
                 }
                 refreshAddress()
             }
@@ -66,12 +69,21 @@ final class GuestNetwork {
         }
         for forward in wanted where forwarders[forward.id] == nil {
             let address = address
-            let forwarder = PortForwarder(forward, guestAddress: { address.value }) { [weak self] error in
-                guard let self, self.forwarders[forward.id]?.forward == forward else { return }
+            let forwarder = PortForwarder(forward, guestAddress: { address.value })
+            forwarders[forward.id] = forwarder
+            forwarder.start { [weak self, weak forwarder] error in
+                guard let self, let forwarder, self.forwarders[forward.id] === forwarder else { return }
                 if self.machine.portForwardErrors[forward.id] != error { self.machine.portForwardErrors[forward.id] = error }
             }
-            forwarders[forward.id] = forwarder
-            forwarder.start()
         }
+    }
+
+    /// A port another app held may be free now. The error stays up until the new listener says otherwise.
+    private func retryFailedForwards() {
+        for id in machine.portForwardErrors.keys {
+            forwarders[id]?.stop()
+            forwarders[id] = nil
+        }
+        updateForwards()
     }
 }

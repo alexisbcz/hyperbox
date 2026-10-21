@@ -52,7 +52,8 @@ nonisolated enum DHCPLeases {
     }
 
     /// A guest with a static address never asks DHCP, but the Mac still learns it from ARP once the guest
-    /// talks on the network, so the ARP table of the NAT bridges is the fallback.
+    /// talks on the network, so the ARP table of the NAT bridges is the fallback. macOS shows the table only
+    /// to apps allowed on the local network (System Settings › Privacy & Security › Local Network).
     static func addressFromARP(for macAddress: String) -> String? {
         guard let mac = bytes(macAddress) else { return nil }
         let arp = Process()

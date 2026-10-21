@@ -12,23 +12,19 @@ nonisolated final class PortForwarder: @unchecked Sendable {
     let forward: MachineConfig.PortForward
     /// Read when each connection arrives, so a guest that changes address after a reboot is still reached.
     private let guestAddress: @Sendable () -> String?
-    /// Called on the main actor with nil once listening, or why it couldn't listen.
-    private let onError: @MainActor @Sendable (String?) -> Void
 
     private let queue: DispatchQueue
     private var listener: NWListener?
     private var sessions: [ObjectIdentifier: Session] = [:]
 
-    init(_ forward: MachineConfig.PortForward, guestAddress: @escaping @Sendable () -> String?,
-         onError: @escaping @MainActor @Sendable (String?) -> Void) {
+    init(_ forward: MachineConfig.PortForward, guestAddress: @escaping @Sendable () -> String?) {
         self.forward = forward
         self.guestAddress = guestAddress
-        self.onError = onError
         queue = DispatchQueue(label: "dev.alexis.Hyperbox.forward.\(forward.hostPort)")
     }
 
-    func start() {
-        let report = onError
+    /// Starts listening. `report` gets nil once it listens, or why it couldn't, on the main actor.
+    func start(report: @escaping @MainActor @Sendable (String?) -> Void) {
         guard forward.hostPort > 0, forward.guestPort > 0, let port = NWEndpoint.Port(rawValue: forward.hostPort) else {
             Task { @MainActor in report("Pick ports from 1 to 65535.") }
             return
