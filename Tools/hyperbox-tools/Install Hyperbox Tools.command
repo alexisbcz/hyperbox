@@ -16,11 +16,26 @@ daemon="/Library/LaunchDaemons/$label.daemon.plist"
 admin_binary=/usr/local/libexec/hyperbox-tools
 uid=$(id -u)
 
+# Asks for your password, or, when Hyperbox installs this itself, gets it from SUDO_ASKPASS.
+admin() { sudo ${SUDO_ASKPASS:+-A} "$@"; }
+
+# Restarts a launchd job from its plist. Bootstrapping right after a bootout fails while launchd is
+# still tearing the old job down, so try a few times.
+reload() { # domain label plist [admin]
+    $4 launchctl bootout "$1/$2" 2>/dev/null || true
+    for _ in 1 2 3 4 5; do
+        $4 launchctl bootstrap "$1" "$3" 2>/dev/null && return 0
+        sleep 1
+    done
+    $4 launchctl bootstrap "$1" "$3"
+}
+
 if [ "$1" = "--uninstall" ]; then
     launchctl bootout "gui/$uid/$label" 2>/dev/null || true
     rm -rf "$agent" "$dir"
     if [ -e "$daemon" ]; then
-        sudo ${SUDO_ASKPASS:+-A} sh -c "launchctl bootout system/$label.daemon 2>/dev/null; rm -f '$daemon' '$admin_binary'"
+        admin launchctl bootout "system/$label.daemon" 2>/dev/null || true
+        admin rm -f "$daemon" "$admin_binary"
     fi
     echo "Hyperbox Tools is gone."
     exit 0
@@ -46,30 +61,24 @@ cat > "$agent" <<EOF
 </dict>
 </plist>
 EOF
-launchctl bootout "gui/$uid/$label" 2>/dev/null || true
-launchctl bootstrap "gui/$uid" "$agent"
+reload "gui/$uid" "$label" "$agent"
 echo "Hyperbox Tools is running: Hyperbox can now run commands, share the clipboard and drop files here."
 
-admin="$1"
-if [ -z "$admin" ]; then
+mode="$1"
+if [ -z "$mode" ]; then
     printf "Also let Hyperbox run commands as administrator? You'll be asked for your password. [y/N] "
     read -r answer
-    case "$answer" in [yY]*) admin=--admin ;; *) admin=--no-admin ;; esac
+    case "$answer" in [yY]*) mode=--admin ;; *) mode=--no-admin ;; esac
 fi
-[ "$admin" = "--admin" ] || exit 0
+[ "$mode" = "--admin" ] || exit 0
 
-# The administrator helper runs as root, so its binary lives where only root can change it.
+# The administrator helper runs as root, so its binary and plist live where only root can change them.
 # (Hyperbox sets SUDO_ASKPASS when it installs this itself, on a machine it set up.)
-sudo ${SUDO_ASKPASS:+-A} sh -c "
-    set -e
-    mkdir -p /usr/local/libexec
-    cp -f '$here/hyperbox-tools' '$admin_binary'
-    chown root:wheel '$admin_binary'
-    chmod 755 '$admin_binary'
-    cat > '$daemon' <<EOF
-<?xml version=\"1.0\" encoding=\"UTF-8\"?>
-<!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">
-<plist version=\"1.0\">
+plist=$(mktemp)
+cat > "$plist" <<EOF
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
 <dict>
     <key>Label</key><string>$label.daemon</string>
     <key>ProgramArguments</key>
@@ -80,9 +89,9 @@ sudo ${SUDO_ASKPASS:+-A} sh -c "
 </dict>
 </plist>
 EOF
-    chown root:wheel '$daemon'
-    chmod 644 '$daemon'
-    launchctl bootout system/$label.daemon 2>/dev/null || true
-    launchctl bootstrap system '$daemon'
-"
+admin mkdir -p /usr/local/libexec
+admin install -m 755 -o root -g wheel "$here/hyperbox-tools" "$admin_binary"
+admin install -m 644 -o root -g wheel "$plist" "$daemon"
+rm -f "$plist"
+reload system "$label.daemon" "$daemon" admin
 echo "Hyperbox can run administrator commands too."
