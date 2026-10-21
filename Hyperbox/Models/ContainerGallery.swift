@@ -2,7 +2,7 @@ import Foundation
 
 /// Official Docker Hub images the Containers page installs in one click, with settings that work out
 /// of the box: a published port, a named volume for the data, and a generated password.
-struct GalleryImage: Identifiable, Hashable, Sendable {
+nonisolated struct GalleryImage: Identifiable, Hashable, Sendable {
     let id: String
     let name: String
     let image: String

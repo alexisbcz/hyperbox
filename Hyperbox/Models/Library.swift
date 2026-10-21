@@ -123,7 +123,7 @@ final class Library {
     func send(_ method: ControlMethod, to id: UUID) {
         Task.detached {
             do { _ = try ControlClient.send(method, to: id) } catch {
-                await MainActor.run { NSAlert(error: error).runModal() }
+                await MainActor.run { _ = NSAlert(error: error).runModal() }
             }
         }
     }
