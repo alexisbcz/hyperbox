@@ -16,6 +16,7 @@ struct MachineWindow: View {
                 StatusOverlay(machine: machine)
             }
         }
+        .agentGlow(machine)
         .ignoresSafeArea()
         .navigationTitle(machine.config.name)
         .navigationSubtitle(machine.ipAddress ?? machine.state.label)
@@ -23,6 +24,7 @@ struct MachineWindow: View {
             ToolbarItemGroup {
                 PowerButtons(machine: machine)
             }
+            AgentBadge(machine: machine)
             ToolbarItemGroup {
                 SnapshotMenu(machine: machine)
                 Button("Settings", systemImage: "slider.horizontal.3") { showingSettings = true }

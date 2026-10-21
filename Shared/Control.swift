@@ -23,6 +23,8 @@ nonisolated enum ControlMethod: String, CaseIterable, Sendable {
     case moveMouse
     /// Params: `x`, `y`, `deltaX`, `deltaY`.
     case scroll
+    /// Holds the left button from `x`, `y` to `toX`, `toY`. Params also `width`, `height`, as for click.
+    case drag
     /// Runs a shell command in the guest. Params: `command`, `admin` (Bool), `timeout` (seconds).
     /// → `{"exitCode": Int, "stdout": String, "stderr": String}`
     case exec
