@@ -4,9 +4,11 @@ import Foundation
 /// The cloud-init seed that turns a distribution's cloud image into a desktop on first boot.
 ///
 /// cloud-init finds it as a disk labelled `cidata` (its NoCloud source) holding `meta-data` and
-/// `user-data`. The user-data creates the user, installs Hyperbox's guest agent, then runs
-/// `setup.sh`, which installs the desktop and reboots into it. Progress shows in console.log, which
-/// `LinuxInstallMonitor` reads, and the agent reports the install done once the guest has rebooted.
+/// `user-data`. The user-data creates the user and installs Hyperbox's guest agent and the
+/// `hyperbox-setup` service, which installs the desktop and reboots into it. The setup is a service
+/// rather than a cloud-init `runcmd` because cloud-init runs those once even when the Mac quits halfway:
+/// the service runs again each boot until it has finished. Progress shows in console.log, which
+/// `LinuxGuest` reads, and the agent reports the install done once the guest has rebooted.
 enum CloudInit {
     /// Where the guest agent keeps its files, and the setup leaves its marks.
     static let agentPath = "/usr/local/libexec/hyperbox/agent.py"
@@ -79,9 +81,14 @@ enum CloudInit {
                 file("/etc/systemd/system/hyperbox-rosetta.service", rosettaUnit),
                 file("/usr/local/libexec/hyperbox/rosetta.sh", rosettaScript, permissions: "0755"),
                 file("/var/lib/hyperbox/setup.sh", setupScript(user: user.name, distribution: distribution), permissions: "0755"),
+                file("/etc/systemd/system/hyperbox-setup.service", setupUnit),
             ],
-            "runcmd": [["/bin/sh", "/var/lib/hyperbox/setup.sh"]],
-            "power_state": ["mode": "reboot", "condition": true, "delay": "now", "message": "Hyperbox: restarting into the desktop"],
+            "runcmd": [
+                ["systemctl", "daemon-reload"],
+                ["systemctl", "enable", "--now", "hyperbox-agent.service"],
+                ["systemctl", "enable", "hyperbox-setup.service"],
+                ["systemctl", "start", "--no-block", "hyperbox-setup.service"],
+            ],
         ]
         let encoder = JSONEncoder()
         // Plain slashes: older YAML parsers don't know JSON's \/ escape.
@@ -99,6 +106,24 @@ enum CloudInit {
         Restart=always
         RestartSec=2
         TimeoutStopSec=8
+
+        [Install]
+        WantedBy=multi-user.target
+
+        """
+
+    /// Runs each boot until the setup has finished, which it marks with the boot it finished in.
+    private static let setupUnit = """
+        [Unit]
+        Description=Hyperbox first-boot setup
+        Wants=network-online.target
+        After=network-online.target cloud-final.service
+        ConditionPathExists=!/var/lib/hyperbox/install-boot-id
+
+        [Service]
+        Type=oneshot
+        ExecStart=/bin/sh -c '/var/lib/hyperbox/setup.sh 2>&1 | tee -a /var/log/hyperbox-setup.log /dev/hvc0'
+        TimeoutStartSec=infinity
 
         [Install]
         WantedBy=multi-user.target
@@ -142,6 +167,8 @@ enum CloudInit {
         case .debian:
             install = """
                 export DEBIAN_FRONTEND=noninteractive
+                # Finishes what a setup cut short by the Mac quitting had begun.
+                dpkg --configure -a
                 apt="apt-get -y -o DPkg::Lock::Timeout=900 -o Dpkg::Options::=--force-confold"
                 step "Downloading the package list"
                 $apt update || { sleep 15; $apt update; } || fail "Couldn't reach the package servers."
@@ -178,8 +205,7 @@ enum CloudInit {
             step() { echo "hyperbox: $*"; }
             fail() { echo "hyperbox: failed: $*"; echo "$*" > /var/lib/hyperbox/install-failed; exit 1; }
             mkdir -p /var/lib/hyperbox
-            systemctl daemon-reload
-            systemctl enable --now hyperbox-agent.service
+            rm -f /var/lib/hyperbox/install-failed
 
             step "Setting up shared folders"
             mkdir -p /mnt/hyperbox /media/rosetta
@@ -226,7 +252,9 @@ enum CloudInit {
             \(bootOptions)
             touch /etc/cloud/cloud-init.disabled
             cat /proc/sys/kernel/random/boot_id > /var/lib/hyperbox/install-boot-id
+            sync
             step "Restarting"
+            systemctl reboot
 
             """
     }
