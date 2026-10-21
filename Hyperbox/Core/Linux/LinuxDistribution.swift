@@ -25,7 +25,8 @@ nonisolated struct LinuxDistribution: Sendable {
         LinuxDistribution(
             id: "ubuntu", family: .debian,
             image: { URL(string: "https://cloud-images.ubuntu.com/releases/noble/release/ubuntu-24.04-server-cloudimg-arm64.img")! },
-            packages: ["ubuntu-desktop-minimal", "spice-vdagent"],
+            // linux-generic: the cloud image's linux-virtual kernel leaves out the sound drivers.
+            packages: ["ubuntu-desktop-minimal", "spice-vdagent", "linux-generic"],
             gdmConfig: "/etc/gdm3/custom.conf", adminGroup: "sudo"),
         LinuxDistribution(
             id: "fedora", family: .fedora,

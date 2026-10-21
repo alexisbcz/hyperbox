@@ -249,6 +249,10 @@ enum CloudInit {
               chmod 600 /etc/netplan/01-network-manager-all.yaml
             fi
             rm -f /etc/network/interfaces.d/50-cloud-init
+            # networkd has nothing left to bring up, and waiting for it holds boot back two minutes.
+            if systemctl is-enabled NetworkManager.service >/dev/null 2>&1; then
+              systemctl disable systemd-networkd.service systemd-networkd.socket systemd-networkd-wait-online.service 2>/dev/null
+            fi
             \(bootOptions)
             touch /etc/cloud/cloud-init.disabled
             cat /proc/sys/kernel/random/boot_id > /var/lib/hyperbox/install-boot-id
