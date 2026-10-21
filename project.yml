@@ -41,6 +41,7 @@ targets:
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.developer-tools
         INFOPLIST_KEY_NSMicrophoneUsageDescription: Hyperbox passes your microphone to virtual machines you allow to use it.
+        INFOPLIST_KEY_NSLocalNetworkUsageDescription: Hyperbox connects to your virtual machines on their private network, to forward ports to them.
         ENABLE_APP_SANDBOX: NO
         ENABLE_HARDENED_RUNTIME: NO
         CODE_SIGN_IDENTITY: "-"

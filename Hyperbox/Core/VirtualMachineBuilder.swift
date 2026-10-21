@@ -92,12 +92,11 @@ enum VirtualMachineBuilder {
         }
         vm.storageDevices = storage
 
-        if config.network.enabled {
-            let network = VZVirtioNetworkDeviceConfiguration()
-            network.attachment = VZNATNetworkDeviceAttachment()
-            if let mac = VZMACAddress(string: config.network.macAddress) { network.macAddress = mac }
-            vm.networkDevices = [network]
-        }
+        // Always there, unplugged when the network is off, so it can be connected while the machine runs.
+        let network = VZVirtioNetworkDeviceConfiguration()
+        network.attachment = config.network.enabled ? VZNATNetworkDeviceAttachment() : nil
+        if let mac = VZMACAddress(string: config.network.macAddress) { network.macAddress = mac }
+        vm.networkDevices = [network]
 
         if config.sound {
             let sound = VZVirtioSoundDeviceConfiguration()

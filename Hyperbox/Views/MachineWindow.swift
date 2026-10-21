@@ -34,7 +34,7 @@ struct MachineWindow: View {
                     MachineSettingsForm(config: Binding(
                         get: { machine.config },
                         set: { new in machine.updateConfig { $0 = new } }
-                    ), running: machine.virtualMachine != nil)
+                    ), running: machine.virtualMachine != nil, portForwardErrors: machine.portForwardErrors)
                     .padding(.vertical)
                 }
                 HStack {

@@ -6,6 +6,8 @@ import Virtualization
 struct MachineSettingsForm: View {
     @Binding var config: MachineConfig
     var running: Bool
+    /// Forwards that couldn't listen, by id, with why.
+    var portForwardErrors: [UUID: String] = [:]
 
     private var maxCPUs: Int { ProcessInfo.processInfo.processorCount }
     private var maxMemoryGB: Int { Int(ProcessInfo.processInfo.physicalMemory >> 30) }
@@ -45,9 +47,14 @@ struct MachineSettingsForm: View {
                     .foregroundStyle(.secondary)
             }
 
-            Section("Network") {
+            Section {
                 Toggle("Connected", isOn: $config.network.enabled)
-                PortForwardsList(forwards: $config.network.portForwards)
+                PortForwardsList(forwards: $config.network.portForwards, errors: portForwardErrors, guestUser: config.guestUser?.name)
+            } header: {
+                Text("Network")
+            } footer: {
+                Text("Forwarded ports reach the guest at 127.0.0.1 on this Mac, while it runs.")
+                    .foregroundStyle(.secondary)
             }
 
             Section {
@@ -134,27 +141,51 @@ private struct SharedFoldersList: View {
 
 private struct PortForwardsList: View {
     @Binding var forwards: [MachineConfig.PortForward]
+    var errors: [UUID: String]
+    var guestUser: String?
 
     var body: some View {
         ForEach($forwards) { $forward in
-            HStack {
-                TextField("Mac port", value: $forward.hostPort, format: .number.grouping(.never))
-                    .frame(width: 90)
-                Image(systemName: "arrow.right").foregroundStyle(.secondary)
-                TextField("Guest port", value: $forward.guestPort, format: .number.grouping(.never))
-                    .frame(width: 90)
-                Picker("", selection: $forward.udp) {
-                    Text("TCP").tag(false)
-                    Text("UDP").tag(true)
-                }
-                .labelsHidden()
-                .frame(width: 80)
-                Spacer()
-                Button("Remove", systemImage: "minus.circle.fill") { forwards.removeAll { $0.id == forward.id } }
+            VStack(alignment: .leading, spacing: 4) {
+                HStack {
+                    TextField("Mac port", value: $forward.hostPort, format: .number.grouping(.never))
+                        .frame(width: 90)
+                    Image(systemName: "arrow.right").foregroundStyle(.secondary)
+                    TextField("Guest port", value: $forward.guestPort, format: .number.grouping(.never))
+                        .frame(width: 90)
+                    Picker("", selection: $forward.udp) {
+                        Text("TCP").tag(false)
+                        Text("UDP").tag(true)
+                    }
+                    .labelsHidden()
+                    .frame(width: 80)
+                    Spacer()
+                    Menu("Actions", systemImage: "ellipsis.circle") {
+                        if !forward.udp {
+                            Button("Open in Browser") { NSWorkspace.shared.open(Self.url(for: forward)) }
+                        }
+                        if forward.guestPort == 22 && !forward.udp {
+                            Button("Copy SSH Command") { Self.copy(Self.sshCommand(for: forward, user: guestUser)) }
+                        }
+                        Button("Copy Address") { Self.copy("127.0.0.1:\(forward.hostPort)") }
+                        Divider()
+                        Toggle("Listen on All Interfaces", isOn: $forward.allInterfaces)
+                    }
                     .labelStyle(.iconOnly)
-                    .buttonStyle(.borderless)
+                    .menuIndicator(.hidden)
+                    .fixedSize()
+                    .help(forward.allInterfaces ? "Other devices on your network can reach this port too." : "Only this Mac can reach this port.")
+                    Button("Remove", systemImage: "minus.circle.fill") { forwards.removeAll { $0.id == forward.id } }
+                        .labelStyle(.iconOnly)
+                        .buttonStyle(.borderless)
+                }
+                .textFieldStyle(.roundedBorder)
+                if let error = errors[forward.id] {
+                    Label(error, systemImage: "exclamationmark.triangle.fill")
+                        .font(.caption)
+                        .foregroundStyle(.red)
+                }
             }
-            .textFieldStyle(.roundedBorder)
         }
         Button("Forward a Port…") {
             let used = Set(forwards.map(\.hostPort))
@@ -162,5 +193,20 @@ private struct PortForwardsList: View {
             while used.contains(port) { port += 1 }
             forwards.append(.init(hostPort: port, guestPort: 80))
         }
+    }
+
+    /// HTTPS for the usual TLS ports, HTTP otherwise.
+    static func url(for forward: MachineConfig.PortForward) -> URL {
+        let scheme = [443, 8443].contains(forward.guestPort) ? "https" : "http"
+        return URL(string: "\(scheme)://localhost:\(forward.hostPort)")!
+    }
+
+    static func sshCommand(for forward: MachineConfig.PortForward, user: String?) -> String {
+        "ssh -p \(forward.hostPort) \(user.map { "\($0)@" } ?? "")127.0.0.1"
+    }
+
+    static func copy(_ text: String) {
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(text, forType: .string)
     }
 }

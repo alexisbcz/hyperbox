@@ -46,6 +46,8 @@ nonisolated struct MachineStatus: Codable, Equatable, Sendable {
     var ipAddress: String?
     /// Installer progress from 0 to 1, while installing.
     var progress: Double?
+    /// Port forwards that couldn't start, by `PortForward.id` (as a string), with why: a port in use, say.
+    var portForwardErrors: [String: String]?
     var updated = Date()
 
     static func read(for id: UUID) -> MachineStatus? {

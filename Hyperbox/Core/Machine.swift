@@ -9,16 +9,27 @@ final class Machine: NSObject {
     private(set) var config: MachineConfig
     private(set) var virtualMachine: VZVirtualMachine?
     private(set) var state: MachineState = .stopped {
-        didSet { writeStatus() }
+        didSet {
+            writeStatus()
+            network.update()
+        }
     }
     private(set) var message: String?
     /// Installer progress from 0 to 1.
     var progress: Double? {
         didSet { writeStatus() }
     }
+    /// The guest's address on the NAT network, from its DHCP lease; see `GuestNetwork`.
     var ipAddress: String? {
         didSet { writeStatus() }
     }
+    /// Port forwards that couldn't listen, by `PortForward.id`, with why.
+    var portForwardErrors: [UUID: String] = [:] {
+        didSet { writeStatus() }
+    }
+
+    /// Finds the guest's address and runs its port forwards.
+    @ObservationIgnored private(set) lazy var network = GuestNetwork(machine: self)
 
     /// The view showing the screen, set by `MachineScreen`, for screenshots and agent input.
     @ObservationIgnored weak var screenView: VZVirtualMachineView?
@@ -138,8 +149,13 @@ final class Machine: NSObject {
         try? FileManager.default.removeItem(at: Paths.status(for: id))
     }
 
+    private var status: MachineStatus {
+        MachineStatus(pid: getpid(), state: state, message: message, ipAddress: ipAddress, progress: progress,
+                      portForwardErrors: portForwardErrors.isEmpty ? nil : Dictionary(uniqueKeysWithValues: portForwardErrors.map { ($0.key.uuidString, $0.value) }))
+    }
+
     private func writeStatus() {
-        MachineStatus(pid: getpid(), state: state, message: message, ipAddress: ipAddress, progress: progress).write(for: id)
+        status.write(for: id)
     }
 
     // MARK: - Screen
@@ -164,7 +180,7 @@ final class Machine: NSObject {
         let params = JSONValue.object(request.params)
         switch method {
         case .status:
-            return try JSONValue(encoding: MachineStatus(pid: getpid(), state: state, message: message, ipAddress: ipAddress, progress: progress))
+            return try JSONValue(encoding: status)
         case .start:
             Task { await start() }
             return .null
