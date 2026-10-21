@@ -144,6 +144,18 @@ nonisolated enum JSONValue: Codable, Equatable, Sendable {
 nonisolated struct ControlRequest: Codable, Sendable {
     var method: String
     var params: [String: JSONValue] = [:]
+
+    init(method: String, params: [String: JSONValue] = [:]) {
+        self.method = method
+        self.params = params
+    }
+
+    /// `params` may be left out: `{"method": "status"}`.
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        method = try c.decode(String.self, forKey: .method)
+        params = try c.decodeIfPresent([String: JSONValue].self, forKey: .params) ?? [:]
+    }
 }
 
 nonisolated struct ControlResponse: Codable, Sendable {
