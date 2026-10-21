@@ -38,6 +38,9 @@ struct HyperboxApp: App {
 final class LibraryDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         _ = Updater.shared
+        #if DEBUG
+        StorageTest.runIfRequested()
+        #endif
     }
 
     func application(_ application: NSApplication, open urls: [URL]) {
@@ -45,6 +48,8 @@ final class LibraryDelegate: NSObject, NSApplicationDelegate {
             Library.shared.add(url)
             if let config = try? MachineConfig.load(from: url) { Library.shared.start(config.id) }
         }
+        // Anything else is something to import: a Parallels or UTM machine, an archive, a disk image.
+        Importer.importFiles(urls.filter { $0.pathExtension != Paths.bundleExtension })
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { true }
