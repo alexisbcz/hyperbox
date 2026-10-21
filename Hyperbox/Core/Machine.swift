@@ -20,6 +20,10 @@ final class Machine: NSObject {
         didSet { writeStatus() }
     }
 
+    /// True while an agent has used the machine in the last few seconds, for the window's Agent badge.
+    private(set) var agentActive = false
+    @ObservationIgnored private var agentIdle: Task<Void, Never>?
+
     /// The view showing the screen, set by `MachineScreen`, for screenshots and agent input.
     @ObservationIgnored weak var screenView: VZVirtualMachineView?
 
@@ -157,6 +161,15 @@ final class Machine: NSObject {
 
     // MARK: - Control
 
+    func noteAgentActivity() {
+        agentActive = true
+        agentIdle?.cancel()
+        agentIdle = Task {
+            try? await Task.sleep(for: .seconds(4))
+            if !Task.isCancelled { agentActive = false }
+        }
+    }
+
     private func handle(_ request: ControlRequest) async throws -> JSONValue {
         guard let method = ControlMethod(rawValue: request.method) else {
             throw ControlError("Unknown method \(request.method). Known: \(ControlMethod.allCases.map(\.rawValue).joined(separator: ", ")).")
@@ -189,9 +202,11 @@ final class Machine: NSObject {
             return .null
         case .screenshot, .type, .key, .click, .moveMouse, .scroll:
             guard config.agentControl else { throw ControlError("Agent control is off for \(config.name). Turn it on in the machine's settings.") }
+            noteAgentActivity()
             return try await AgentControl.handle(method, params: params, machine: self)
         case .exec:
             guard config.agentControl else { throw ControlError("Agent control is off for \(config.name). Turn it on in the machine's settings.") }
+            noteAgentActivity()
             return try await GuestAgent.exec(params, machine: self)
         case .listSnapshots, .takeSnapshot, .restoreSnapshot, .deleteSnapshot:
             return try await Snapshots.handle(method, params: params, machine: self)
