@@ -325,6 +325,21 @@ nonisolated enum Tools {
             return [.text("Moved the pointer.")]
         },
 
+        Tool(name: "drag", title: "Drag",
+             description: "Holds the left mouse button down at x, y, moves to toX, toY, and lets go: to move a window or a file, select text, or use a slider. All in pixels of your last screenshot.",
+             properties: ["machine": machine, "x": x, "y": y,
+                          "toX": ["type": "number", "description": "Where to let go, from the left."],
+                          "toY": ["type": "number", "description": "Where to let go, from the top."]],
+             required: ["x", "y", "toX", "toY"], readOnly: false, destructive: false) { args, session in
+            let m = try Machines.prepare(args, session)
+            var params = try Machines.point(args, m, session)
+            guard let toX = args["toX"]?.double, let toY = args["toY"]?.double else { throw ToolFailure("drag needs toX and toY.") }
+            params["toX"] = .number(toX)
+            params["toY"] = .number(toY)
+            _ = try ControlClient.send(.drag, to: m.config.id, params: params)
+            return [.text("Dragged.\(session.takeNote(for: m.config.id))")]
+        },
+
         Tool(name: "scroll", title: "Scroll",
              description: "Scrolls with the mouse wheel, at x, y when given. deltaY > 0 scrolls the content down (to read further), < 0 up; deltaX > 0 right. Units are wheel notches, about 3 lines each; 5 is a good start.",
              properties: ["machine": machine, "x": x, "y": y,

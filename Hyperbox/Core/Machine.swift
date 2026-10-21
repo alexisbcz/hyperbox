@@ -200,7 +200,7 @@ final class Machine: NSObject {
         case .reloadConfig:
             try reloadConfig()
             return .null
-        case .screenshot, .type, .key, .click, .moveMouse, .scroll:
+        case .screenshot, .type, .key, .click, .moveMouse, .scroll, .drag:
             guard config.agentControl else { throw ControlError("Agent control is off for \(config.name). Turn it on in the machine's settings.") }
             noteAgentActivity()
             return try await AgentControl.handle(method, params: params, machine: self)

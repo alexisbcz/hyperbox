@@ -37,6 +37,12 @@ enum AgentControl {
             let view = try view(of: machine)
             if params["x"] != nil { try await move(to: point(params, machine: machine, view: view), in: view) }
             scroll(deltaX: params["deltaX"]?.double ?? 0, deltaY: params["deltaY"]?.double ?? 0, in: view)
+        case .drag:
+            let view = try view(of: machine)
+            let from = try point(params, machine: machine, view: view)
+            var to = params
+            if case .object(var o) = params { o["x"] = params["toX"]; o["y"] = params["toY"]; to = .object(o) }
+            try await drag(from: from, to: point(to, machine: machine, view: view), in: view)
         default:
             throw ControlError("\(method.rawValue) isn't an agent method.")
         }
@@ -115,6 +121,23 @@ enum AgentControl {
         }
     }
 
+    /// In steps, so the guest sees the pointer travel, as apps that track dragging expect.
+    private static func drag(from: CGPoint, to: CGPoint, in view: VZVirtualMachineView) async throws {
+        try await move(to: from, in: view)
+        send(mouse: .leftMouseDown, at: from, clickCount: 1, in: view)
+        try await pause()
+        let steps = 12
+        for i in 1...steps {
+            let t = CGFloat(i) / CGFloat(steps)
+            let point = CGPoint(x: from.x + (to.x - from.x) * t, y: from.y + (to.y - from.y) * t)
+            send(mouse: .leftMouseDragged, at: point, in: view)
+            try await pause()
+        }
+        send(mouse: .leftMouseUp, at: to, clickCount: 1, in: view)
+        pointer = to
+        try await pause()
+    }
+
     private static func send(mouse type: NSEvent.EventType, at point: CGPoint, clickCount: Int = 0, modifiers: NSEvent.ModifierFlags = [], in view: VZVirtualMachineView) {
         guard let window = view.window, let event = NSEvent.mouseEvent(
             with: type, location: point, modifierFlags: modifiers, timestamp: ProcessInfo.processInfo.systemUptime,
@@ -133,10 +156,13 @@ enum AgentControl {
         }
     }
 
-    /// Lines, like a mouse wheel: positive deltaY scrolls the content down, as an agent reading a page expects.
+    /// Notches of a mouse wheel: positive deltaY scrolls the content down, as an agent reading a page expects.
     private static func scroll(deltaX: Double, deltaY: Double, in view: VZVirtualMachineView) {
+        // Virtualization turns each line into a tenth of a wheel notch (10 of the 120 high-resolution units
+        // Linux counts per notch), so a notch is 12 lines. Its horizontal wheel runs the other way round.
+        let lines = 12.0
         guard let cg = CGEvent(scrollWheelEvent2Source: nil, units: .line, wheelCount: 2,
-                               wheel1: Int32(-deltaY.rounded()), wheel2: Int32(-deltaX.rounded()), wheel3: 0)
+                               wheel1: Int32((-deltaY * lines).rounded()), wheel2: Int32((deltaX * lines).rounded()), wheel3: 0)
         else { return }
         if let pointer, let window = view.window {
             // CGEvent locations are in global coordinates with the origin at the top left of the main screen.
