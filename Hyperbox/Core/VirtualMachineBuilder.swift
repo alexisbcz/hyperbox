@@ -21,7 +21,7 @@ enum VirtualMachineBuilder {
 
         var storage: [VZStorageDeviceConfiguration] = [
             VZVirtioBlockDeviceConfiguration(attachment: try VZDiskImageStorageDeviceAttachment(
-                url: bundle.disk, readOnly: false, cachingMode: .automatic, synchronizationMode: .fsync)),
+                url: bundle.disk, readOnly: false, cachingMode: .cached, synchronizationMode: .fsync)),
         ]
 
         switch config.os {
