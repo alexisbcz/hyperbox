@@ -14,9 +14,7 @@ import Virtualization
 ///     {"op": "setClipboard", "text": String}            → {"ok": true}
 ///
 /// `ready` is false while a first-boot setup is still running, and the Linux agent adds `setupError` when
-/// that setup failed. Going the other way, the Linux agent connects to the host's port 7071 and sends
-/// `{"event": "reboot"}` as the guest restarts, since Virtualization stops a Linux guest that reboots;
-/// see `LinuxGuest`. `exec` runs `/bin/sh -c command` as the
+/// that setup failed. `exec` runs `/bin/sh -c command` as the
 /// desktop user, or as root when `admin` is true. Paths starting with `~` are the desktop user's home.
 enum GuestAgent {
     static func request(_ request: [String: JSONValue], machine: Machine, timeout: TimeInterval = 30) async throws -> JSONValue {

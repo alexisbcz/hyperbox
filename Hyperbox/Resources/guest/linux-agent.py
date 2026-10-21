@@ -19,10 +19,6 @@ import threading
 
 VERSION = 1
 PORT = 7070
-# The host listens here for events, like the guest restarting: Virtualization stops a Linux
-# machine that reboots, so Hyperbox needs to be told to start it again.
-HOST_EVENT_PORT = 7071
-HOST_CID = 2
 CONFIG = "/etc/hyperbox/agent.json"
 # Written by the first-boot setup with the boot it ran in, so `ready` waits for the reboot after it.
 INSTALL_BOOT = "/var/lib/hyperbox/install-boot-id"
@@ -203,32 +199,7 @@ def serve(connection):
             stream.flush()
 
 
-def rebooting():
-    try:
-        jobs = subprocess.run(["systemctl", "list-jobs", "--no-legend"], capture_output=True, text=True, timeout=3).stdout
-    except (OSError, subprocess.SubprocessError):
-        return False
-    return "reboot.target" in jobs or "kexec.target" in jobs
-
-
-def tell_host(event):
-    try:
-        with socket.socket(socket.AF_VSOCK, socket.SOCK_STREAM) as s:
-            s.settimeout(2)
-            s.connect((HOST_CID, HOST_EVENT_PORT))
-            s.sendall(json.dumps({"event": event}).encode() + b"\n")
-    except OSError as error:
-        log("couldn't tell the host", event, error)
-
-
-def stopping(signum, frame):
-    if rebooting():
-        tell_host("reboot")
-    sys.exit(0)
-
-
 def main():
-    signal.signal(signal.SIGTERM, stopping)
     server = socket.socket(socket.AF_VSOCK, socket.SOCK_STREAM)
     server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     server.bind((socket.VMADDR_CID_ANY, PORT))

@@ -2,36 +2,26 @@ import SwiftUI
 import Virtualization
 
 /// What a running Linux machine needs beyond booting: following an automatic install to the end,
-/// starting the machine again when the guest reboots, and ejecting an installer ISO once it's done.
+/// and ejecting an installer ISO once it has done its job.
 ///
-/// The Virtualization framework has no reboot for Linux guests: a guest that restarts just stops.
-/// So Hyperbox starts it again when it knows a restart was meant:
-/// - during an install (cloud-init's last step, or an installer's "Reboot"), any stop the Mac didn't ask for;
-/// - otherwise, when the guest agent said `{"event": "reboot"}` on vsock port `eventPort` as it went down.
-///
-/// An installer ISO is ejected the first time the guest stops after writing more than
-/// `installedDiskSize` to its disk: by then the installer has put a system there, and a live session
-/// that never installed leaves the disk empty and keeps its ISO. "Eject Installer" does it by hand.
+/// Virtualization restarts a Linux guest that reboots in place, without stopping it, so an installer's
+/// final reboot comes back up with the ISO still attached. Installers put the new system first in the
+/// EFI boot order, so it boots the disk anyway; the ISO is then ejected the next time the machine
+/// starts or stops with more than `installedDiskSize` on its disk. A live session that never installed
+/// leaves the disk empty and keeps its ISO. "Eject Installer" detaches it at once, while running.
 enum LinuxGuest {
-    /// The vsock port Hyperbox listens on for events from the guest agent.
-    static let eventPort: UInt32 = 7071
     static let installedDiskSize: Int64 = 64 << 20
 
-    private static var rebootAnnounced = false
     private static var installRestarts = 0
-    private static var listener: VZVirtioSocketListener?
-    private static let listenerDelegate = EventListener()
     private static var progress = InstallProgress()
 
     /// Call when the machine has booted.
     static func started(_ machine: Machine) {
         guard machine.config.os == .linux, let vm = machine.virtualMachine else { return }
-        rebootAnnounced = false
-        if let device = vm.socketDevices.first as? VZVirtioSocketDevice {
-            let listener = VZVirtioSocketListener()
-            listener.delegate = listenerDelegate
-            device.setSocketListener(listener, forPort: eventPort)
-            self.listener = listener
+        // The machine was built with the ISO attached; with a system already on the disk, detach it
+        // before the firmware picks something to boot.
+        if machine.config.install?.kind == .iso, diskUsage(machine.bundle.disk) > installedDiskSize {
+            Task { await ejectInstaller(machine) }
         }
         if machine.config.install?.kind == .cloudInit {
             followInstall(machine, vm: vm)
@@ -41,22 +31,22 @@ enum LinuxGuest {
     /// Call when the guest has stopped; `requested` when the Mac asked it to.
     static func stopped(_ machine: Machine, requested: Bool) {
         guard machine.config.os == .linux else { return }
-        var restart = rebootAnnounced && !requested
-        rebootAnnounced = false
         switch machine.config.install?.kind {
         case .iso:
-            if diskUsage(machine.bundle.disk) > installedDiskSize {
-                machine.updateConfig { $0.install = nil }
-                restart = !requested
-            }
-        case .cloudInit:
-            // A guest that keeps stopping right after it starts isn't rebooting; leave it stopped.
+            ejectIfInstalled(machine)
+        case .cloudInit where !requested:
+            // The setup reboots in place, so a stop it didn't ask for is a guest that powered off midway:
+            // carry on, unless it keeps stopping, which no reboot would.
             installRestarts += 1
-            restart = !requested && installRestarts <= 6
+            if installRestarts <= 3 { Task { await machine.start() } }
         default:
             break
         }
-        if restart { Task { await machine.start() } }
+    }
+
+    /// Stops attaching the ISO for the next boot once the guest has written a system to its disk.
+    private static func ejectIfInstalled(_ machine: Machine) {
+        if diskUsage(machine.bundle.disk) > installedDiskSize { machine.updateConfig { $0.install = nil } }
     }
 
     static func ejectInstaller(_ machine: Machine) async {
@@ -119,27 +109,6 @@ enum LinuxGuest {
         progress = InstallProgress()
         installRestarts = 0
         machine.installFinished()
-    }
-
-    /// Accepts the guest agent's connections on `eventPort` and reads its one-line events.
-    private final class EventListener: NSObject, VZVirtioSocketListenerDelegate {
-        nonisolated func listener(_ listener: VZVirtioSocketListener, shouldAcceptNewConnection connection: VZVirtioSocketConnection,
-                                  from socketDevice: VZVirtioSocketDevice) -> Bool {
-            let fd = dup(connection.fileDescriptor)
-            connection.close()
-            Task.detached {
-                defer { close(fd) }
-                var tv = timeval(tv_sec: 2, tv_usec: 0)
-                setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &tv, socklen_t(MemoryLayout<timeval>.size))
-                var buffer = [UInt8](repeating: 0, count: 4096)
-                let n = read(fd, &buffer, buffer.count)
-                guard n > 0, let event = try? JSONDecoder().decode(JSONValue.self, from: Data(buffer[0..<n]).prefix { $0 != 0x0A }) else { return }
-                if event["event"]?.string == "reboot" {
-                    await MainActor.run { LinuxGuest.rebootAnnounced = true }
-                }
-            }
-            return true
-        }
     }
 }
 
