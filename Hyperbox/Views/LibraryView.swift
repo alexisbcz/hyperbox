@@ -57,7 +57,7 @@ private struct MachineRow: View {
             VStack(alignment: .leading, spacing: 1) {
                 Text(entry.config.name)
                     .lineLimit(1)
-                Text(state.label)
+                Text([state.label, library.statuses[entry.id]?.ipAddress].compactMap(\.self).joined(separator: " · "))
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -156,7 +156,8 @@ private struct MachineDetail: View {
                 MachineSettingsForm(config: Binding(
                     get: { entry.config },
                     set: { new in library.update(entry.id) { $0 = new } }
-                ), running: state != .stopped)
+                ), running: state != .stopped, portForwardErrors: Dictionary(uniqueKeysWithValues:
+                    (status?.portForwardErrors ?? [:]).compactMap { key, value in UUID(uuidString: key).map { ($0, value) } }))
             }
             .padding(24)
             .frame(maxWidth: 760)

@@ -1,80 +1,91 @@
 import Foundation
 
-// The `hyperbox` command: lists machines and drives the running ones through their control sockets.
+// The `hyperbox` command: lists machines and drives the running ones through their control sockets
+// (see `ControlMethod`). Each command is a `Command` in one of the *Commands.swift files; add yours to
+// this table, in the group it belongs to, and `hyperbox --help` lists it.
 
-func usage() -> Never {
-    print("""
+let commands: [Command] = [
+    // Machines: MachineCommands.swift
+    .list, .status, .start, .stop, .kill, .pause, .resume, .open,
+    // Network: NetworkCommands.swift
+    .ip, .ssh, .forward, .unforward, .forwards,
+    // Snapshots: SnapshotCommands.swift
+    .snapshot, .snapshots, .restore, .deleteSnapshot,
+    // In the guest: GuestCommands.swift
+    .exec, .screenshot,
+    // For AI agents: MCP.swift
+    .mcp,
+    // containers: see Containers.swift
+]
+
+func usage() -> String {
+    let width = commands.map(\.name.count).max() ?? 0
+    return """
     Usage: hyperbox <command> [arguments]
 
+    Run and reach Hyperbox's virtual machines from a terminal.
+
     Commands:
-      list                       list machines and their state
-      start <machine>            start a machine
-      stop <machine>             shut a machine down
-      status <machine>           print a machine's state as JSON
-      mcp                        run the MCP server for AI agents, on stdin and stdout
+    \(commands.map { "  \($0.name.padding(toLength: width + 2, withPad: " ", startingAt: 0))\($0.summary)" }.joined(separator: "\n"))
 
-    A machine is its name or its id.
-    """)
-    exit(0)
+    A machine is its name, its id (or the start of it), or the path to its .hyperbox bundle.
+    Run `hyperbox help <command>` for a command's arguments.
+
+    Examples:
+      hyperbox start debian --wait && hyperbox ssh debian
+      hyperbox forward debian 8080:80 && open http://localhost:8080
+      hyperbox exec debian -- uname -a
+    """
 }
 
-func fail(_ message: String) -> Never {
-    FileHandle.standardError.write(Data("hyperbox: \(message)\n".utf8))
-    exit(1)
+func help(_ command: Command) -> String {
+    var text = "Usage: \(command.usage)\n\n\(command.summary.prefix(1).uppercased() + command.summary.dropFirst())."
+    if !command.details.isEmpty { text += "\n\n\(command.details)" }
+    if !command.aliases.isEmpty { text += "\n\nAlso: \(command.aliases.joined(separator: ", "))" }
+    return text
 }
 
-func machines() -> [(url: URL, config: MachineConfig)] {
-    Paths.machineBundles().compactMap { url in (try? MachineConfig.load(from: url)).map { (url, $0) } }
-}
-
-func find(_ name: String) -> (url: URL, config: MachineConfig) {
-    let all = machines()
-    if let match = all.first(where: { $0.config.name == name || $0.config.id.uuidString.lowercased() == name.lowercased() }) { return match }
-    if let match = all.first(where: { $0.config.name.lowercased() == name.lowercased() }) { return match }
-    fail("no machine named \(name). Try `hyperbox list`.")
-}
-
-/// The app this tool is inside: Hyperbox.app/Contents/Resources/bin/hyperbox.
-func appURL() -> URL {
-    let me = URL(fileURLWithPath: CommandLine.arguments[0]).resolvingSymlinksInPath()
-    return me.deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+func lookup(_ name: String) -> Command? {
+    commands.first { $0.name == name || $0.aliases.contains(name) }
 }
 
 var arguments = Array(CommandLine.arguments.dropFirst())
-guard let command = arguments.first else { usage() }
+guard let name = arguments.first else {
+    print(usage())
+    exit(0)
+}
 arguments.removeFirst()
 
-switch command {
+switch name {
 case "-h", "--help", "help":
-    usage()
-case "list", "ls":
-    for machine in machines() {
-        let state = MachineStatus.read(for: machine.config.id)?.state.label ?? "Stopped"
-        print("\(machine.config.name)\t\(machine.config.os.label)\t\(state)")
-    }
-case "start":
-    guard let name = arguments.first else { fail("start needs a machine.") }
-    let machine = find(name)
-    if MachineStatus.read(for: machine.config.id) != nil {
-        _ = try? ControlClient.send(.start, to: machine.config.id)
+    if let topic = arguments.first {
+        guard let command = lookup(topic) else {
+            printError("no command \(topic). Run `hyperbox --help` for the list.")
+            exit(1)
+        }
+        print(help(command))
     } else {
-        let p = Process()
-        p.executableURL = URL(fileURLWithPath: "/usr/bin/open")
-        p.arguments = ["-n", "-a", appURL().path, "--args", "--machine", machine.url.path]
-        try p.run()
-        p.waitUntilExit()
+        print(usage())
     }
-case "stop":
-    guard let name = arguments.first else { fail("stop needs a machine.") }
-    do { _ = try ControlClient.send(.stop, to: find(name).config.id) } catch { fail(error.localizedDescription) }
-case "status":
-    guard let name = arguments.first else { fail("status needs a machine.") }
-    do {
-        let result = try ControlClient.send(.status, to: find(name).config.id)
-        print(String(decoding: try JSONEncoder.machine.encode(result), as: UTF8.self))
-    } catch { fail(error.localizedDescription) }
-case "mcp":
-    MCP.serve()
+case "-v", "--version", "version":
+    print("hyperbox \(AppLauncher.url.flatMap { Bundle(url: $0)?.infoDictionary?["CFBundleShortVersionString"] as? String } ?? "(development)")")
 default:
-    fail("unknown command \(command) (try --help)")
+    guard let command = lookup(name) else {
+        printError("no command \(name). Run `hyperbox --help` for the list.")
+        exit(1)
+    }
+    if arguments.prefix(while: { $0 != "--" }).contains(where: { $0 == "--help" || $0 == "-h" }) {
+        print(help(command))
+        exit(0)
+    }
+    var args = Arguments(arguments)
+    do {
+        try command.run(&args)
+    } catch let failure as Failure {
+        if let message = failure.errorDescription, !message.isEmpty { printError(message) }
+        exit(failure.status)
+    } catch {
+        printError(error.localizedDescription)
+        exit(1)
+    }
 }

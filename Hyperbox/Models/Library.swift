@@ -21,12 +21,18 @@ final class Library {
     private(set) var thumbnailGeneration = 0
 
     @ObservationIgnored private var timer: Timer?
+    /// When each config.json last changed, so edits made in a machine's own window, or by the
+    /// `hyperbox` command, show up here. Reading never writes back, so the two processes can't loop.
+    @ObservationIgnored private var configDates: [UUID: Date] = [:]
 
     private init() {
         Paths.ensure(Paths.machines)
         reload()
         timer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
-            MainActor.assumeIsolated { self?.refreshStatuses() }
+            MainActor.assumeIsolated {
+                self?.refreshStatuses()
+                self?.refreshConfigs()
+            }
         }
     }
 
@@ -35,6 +41,7 @@ final class Library {
             (try? MachineConfig.load(from: url)).map { Entry(url: url, config: $0) }
         }
         .sorted { $0.config.created < $1.config.created }
+        configDates = Dictionary(machines.map { ($0.id, Self.modified($0.bundle.config)) }, uniquingKeysWith: { $1 })
         refreshStatuses()
         if selection == nil || !machines.contains(where: { $0.id == selection }) { selection = machines.first?.id }
     }
@@ -46,6 +53,22 @@ final class Library {
         }
         if new.keys != statuses.keys || new.contains(where: { statuses[$0.key]?.state != $0.value.state }) { thumbnailGeneration += 1 }
         if new != statuses { statuses = new }
+    }
+
+    private func refreshConfigs() {
+        for index in machines.indices {
+            let entry = machines[index]
+            let date = Self.modified(entry.bundle.config)
+            guard date != configDates[entry.id] else { continue }
+            configDates[entry.id] = date
+            if let config = try? MachineConfig.load(from: entry.url), config.id == entry.id, config != entry.config {
+                machines[index].config = config
+            }
+        }
+    }
+
+    private static func modified(_ url: URL) -> Date {
+        ((try? FileManager.default.attributesOfItem(atPath: url.path))?[.modificationDate] as? Date) ?? .distantPast
     }
 
     func entry(_ id: UUID?) -> Entry? { machines.first { $0.id == id } }

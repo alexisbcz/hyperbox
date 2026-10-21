@@ -520,3 +520,10 @@ nonisolated enum Machines {
         try ControlClient.send(.takeSnapshot, to: m.config.id, params: ["name": .string(name)], timeout: 300).decode(SnapshotInfo.self)
     }
 }
+
+extension Command {
+    static let mcp = Command(name: "mcp", summary: "run the MCP server for AI agents, on stdin and stdout",
+                             details: "Settings › Agents adds it to Claude Code, Codex, Cursor and others in one click.") { _ in
+        MCP.serve()
+    }
+}

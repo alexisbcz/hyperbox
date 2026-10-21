@@ -106,6 +106,27 @@ nonisolated struct MachineConfig: Codable, Equatable, Sendable {
         var hostPort: UInt16
         var guestPort: UInt16
         var udp = false
+        /// Listen on every interface, so other devices on your network can reach the guest, not only this Mac.
+        var allInterfaces = false
+
+        init(hostPort: UInt16, guestPort: UInt16, udp: Bool = false, allInterfaces: Bool = false) {
+            self.hostPort = hostPort
+            self.guestPort = guestPort
+            self.udp = udp
+            self.allInterfaces = allInterfaces
+        }
+
+        init(from decoder: Decoder) throws {
+            let c = try decoder.container(keyedBy: CodingKeys.self)
+            id = try c.decodeIfPresent(UUID.self, forKey: .id) ?? UUID()
+            hostPort = try c.decode(UInt16.self, forKey: .hostPort)
+            guestPort = try c.decode(UInt16.self, forKey: .guestPort)
+            udp = try c.decodeIfPresent(Bool.self, forKey: .udp) ?? false
+            allInterfaces = try c.decodeIfPresent(Bool.self, forKey: .allInterfaces) ?? false
+        }
+
+        /// "8080 → 80", "5353 → 53/udp".
+        var label: String { "\(hostPort) → \(guestPort)\(udp ? "/udp" : "")" }
     }
 
     /// What the next boot installs from.

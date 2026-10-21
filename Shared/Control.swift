@@ -48,6 +48,8 @@ nonisolated struct MachineStatus: Codable, Equatable, Sendable {
     var ipAddress: String?
     /// Installer progress from 0 to 1, while installing.
     var progress: Double?
+    /// Port forwards that couldn't start, by `PortForward.id` (as a string), with why: a port in use, say.
+    var portForwardErrors: [String: String]?
     var updated = Date()
 
     static func read(for id: UUID) -> MachineStatus? {
@@ -144,6 +146,18 @@ nonisolated enum JSONValue: Codable, Equatable, Sendable {
 nonisolated struct ControlRequest: Codable, Sendable {
     var method: String
     var params: [String: JSONValue] = [:]
+
+    init(method: String, params: [String: JSONValue] = [:]) {
+        self.method = method
+        self.params = params
+    }
+
+    /// `params` may be left out: `{"method": "status"}`.
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        method = try c.decode(String.self, forKey: .method)
+        params = try c.decodeIfPresent([String: JSONValue].self, forKey: .params) ?? [:]
+    }
 }
 
 nonisolated struct ControlResponse: Codable, Sendable {
