@@ -42,7 +42,7 @@ enum AgentIntegrations {
         [
             Agent(id: "claude-code", name: "Claude Code", file: home.appending(path: ".claude.json"), format: .json(key: "mcpServers", typed: true),
                   signs: [home.appending(path: ".claude.json"), home.appending(path: ".claude")], cli: "claude"),
-            Agent(id: "claude-desktop", name: "Claude", file: appSupport.appending(path: "Claude/claude_desktop_config.json"),
+            Agent(id: "claude-desktop", name: "Claude Desktop", file: appSupport.appending(path: "Claude/claude_desktop_config.json"),
                   format: .json(key: "mcpServers", typed: false), signs: [URL(fileURLWithPath: "/Applications/Claude.app"), appSupport.appending(path: "Claude")]),
             Agent(id: "codex", name: "Codex", file: home.appending(path: ".codex/config.toml"), format: .toml,
                   signs: [home.appending(path: ".codex"), URL(fileURLWithPath: "/Applications/Codex.app")]),
@@ -156,7 +156,8 @@ enum AgentIntegrations {
             } else {
                 servers[serverName] = nil
             }
-            root[key] = servers
+            // Removing the last server takes the empty key with it.
+            root[key] = servers.isEmpty ? nil : servers
             new = try JSONSerialization.data(withJSONObject: root, options: [.prettyPrinted, .withoutEscapingSlashes])
         case .toml:
             var text = TOML.removingTable(from: String(decoding: existing ?? Data(), as: UTF8.self))
