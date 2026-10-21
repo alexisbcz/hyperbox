@@ -13,7 +13,8 @@ import Foundation
 ///       machine-id         VZMacMachineIdentifier or VZGenericMachineIdentifier data
 ///       thumbnail.png      the screen when the machine last stopped, for the library
 ///       console.log        the serial console
-///       snapshots/<id>/    see Snapshot
+///       saved-state.vzsave a suspended machine's memory and devices; the next start resumes from it
+///       snapshots/<id>/    see SnapshotFiles
 ///
 /// New fields need defaults in `init(from:)`, so bundles from older versions still open.
 nonisolated struct MachineConfig: Codable, Equatable, Sendable {
@@ -36,6 +37,8 @@ nonisolated struct MachineConfig: Codable, Equatable, Sendable {
     var nestedVirtualization = false
     /// Lets AI agents see the screen and use the keyboard and mouse, through the MCP server.
     var agentControl = true
+    /// Quitting saves the machine's state and the next start resumes it, instead of shutting it down.
+    var suspendOnQuit = true
     var created = Date()
     /// Set until the installer has finished.
     var install: Install?
@@ -68,6 +71,7 @@ nonisolated struct MachineConfig: Codable, Equatable, Sendable {
         rosetta = try c.decodeIfPresent(Bool.self, forKey: .rosetta) ?? true
         nestedVirtualization = try c.decodeIfPresent(Bool.self, forKey: .nestedVirtualization) ?? false
         agentControl = try c.decodeIfPresent(Bool.self, forKey: .agentControl) ?? true
+        suspendOnQuit = try c.decodeIfPresent(Bool.self, forKey: .suspendOnQuit) ?? true
         created = try c.decodeIfPresent(Date.self, forKey: .created) ?? Date()
         install = try c.decodeIfPresent(Install.self, forKey: .install)
         guestUser = try c.decodeIfPresent(GuestUser.self, forKey: .guestUser)
@@ -204,4 +208,5 @@ nonisolated struct MachineBundle: Sendable, Hashable {
     var thumbnail: URL { url.appending(path: "thumbnail.png") }
     var console: URL { url.appending(path: "console.log") }
     var snapshots: URL { url.appending(path: "snapshots") }
+    var savedState: URL { url.appending(path: "saved-state.vzsave") }
 }

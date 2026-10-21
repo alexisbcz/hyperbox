@@ -14,8 +14,14 @@ struct MachineSettingsForm: View {
 
     var body: some View {
         Form {
-            Section("General") {
+            Section {
                 TextField("Name", text: $config.name)
+                Toggle("Suspend when quitting", isOn: $config.suspendOnQuit)
+            } header: {
+                Text("General")
+            } footer: {
+                Text(config.suspendOnQuit ? "Quitting saves what's running, and the next start picks up where it left off." : "Quitting shuts the machine down.")
+                    .foregroundStyle(.secondary)
             }
 
             if let user = config.guestUser {
@@ -41,7 +47,7 @@ struct MachineSettingsForm: View {
                 )) {
                     ForEach(DisplayPreset.allCases) { Text($0.label).tag($0) }
                 }
-                LabeledContent("Disk", value: ByteCountFormatter.string(fromByteCount: Int64(config.diskSize), countStyle: .file))
+                DiskSizeRow(diskSize: $config.diskSize)
             } header: {
                 Text("Hardware")
             } footer: {
@@ -98,6 +104,48 @@ struct MachineSettingsForm: View {
         .formStyle(.grouped)
         .scrollDisabled(true)
         .scrollContentBackground(.hidden)
+    }
+}
+
+/// The disk's size, and a way to grow it while the machine is stopped. The file grows when the machine
+/// next starts (see `Machine.growDisk`); disks never shrink.
+private struct DiskSizeRow: View {
+    @Binding var diskSize: UInt64
+    @State private var growing = false
+    @State private var newGB = 0
+
+    private var currentGB: Int { Int((diskSize + (1 << 30) - 1) >> 30) }
+
+    var body: some View {
+        LabeledContent("Disk") {
+            HStack {
+                Text(ByteCountFormatter.string(fromByteCount: Int64(diskSize), countStyle: .file))
+                Button("Grow…") {
+                    newGB = currentGB + 16
+                    growing = true
+                }
+                .popover(isPresented: $growing, arrowEdge: .bottom) {
+                    VStack(alignment: .leading, spacing: 12) {
+                        Stepper("New size: \(newGB) GB", value: $newGB, in: (currentGB + 1)...4096, step: 8)
+                        Text("The disk takes only the space the guest uses, so a bigger one costs nothing until it's filled. The guest has to grow its partition to use it; cloud images do it as they start. A disk can't shrink again.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                        HStack {
+                            Spacer()
+                            Button("Cancel") { growing = false }
+                            Button("Grow") {
+                                diskSize = UInt64(newGB) << 30
+                                growing = false
+                            }
+                            .keyboardShortcut(.defaultAction)
+                        }
+                    }
+                    .padding()
+                    .frame(width: 300)
+                }
+            }
+        }
     }
 }
 

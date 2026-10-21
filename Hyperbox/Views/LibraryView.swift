@@ -49,6 +49,7 @@ struct LibraryView: View {
         .sheet(isPresented: $library.showingNewMachine) {
             NewMachineSheet()
         }
+        .modifier(StorageActivitySheet())
     }
 }
 
@@ -63,7 +64,8 @@ private struct MachineRow: View {
             VStack(alignment: .leading, spacing: 1) {
                 Text(entry.config.name)
                     .lineLimit(1)
-                Text([state.label, library.statuses[entry.id]?.ipAddress].compactMap(\.self).joined(separator: " · "))
+                Text([state == .stopped && FileManager.default.fileExists(atPath: entry.bundle.savedState.path) ? "Suspended" : state.label,
+                      library.statuses[entry.id]?.ipAddress].compactMap(\.self).joined(separator: " · "))
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -161,6 +163,7 @@ private struct MachineDetail: View {
                         Text("Installing \(entry.config.os.label)… \(Int(progress * 100))%").monospacedDigit()
                     }
                 }
+                StorageSection(entry: entry)
                 MachineSettingsForm(config: Binding(
                     get: { entry.config },
                     set: { new in library.update(entry.id) { $0 = new } }

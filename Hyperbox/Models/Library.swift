@@ -73,6 +73,9 @@ final class Library {
         ((try? FileManager.default.attributesOfItem(atPath: url.path))?[.modificationDate] as? Date) ?? .distantPast
     }
 
+    /// For when a thumbnail changed without the state changing: a snapshot restored while stopped.
+    func bumpThumbnail() { thumbnailGeneration += 1 }
+
     func entry(_ id: UUID?) -> Entry? { machines.first { $0.id == id } }
 
     func state(of id: UUID) -> MachineState { statuses[id]?.state ?? .stopped }

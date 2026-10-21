@@ -44,6 +44,7 @@ final class LibraryDelegate: NSObject, NSApplicationDelegate {
         MacTestHook.runIfRequested()
         // `-showContainers YES`: open on the Containers page, for screenshots.
         if UserDefaults.standard.bool(forKey: "showContainers") { Library.shared.selection = Library.containersPage }
+        StorageTest.runIfRequested()
         #endif
     }
 
@@ -52,6 +53,8 @@ final class LibraryDelegate: NSObject, NSApplicationDelegate {
             Library.shared.add(url)
             if let config = try? MachineConfig.load(from: url) { Library.shared.start(config.id) }
         }
+        // Anything else is something to import: a Parallels or UTM machine, an archive, a disk image.
+        Importer.importFiles(urls.filter { $0.pathExtension != Paths.bundleExtension })
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { true }
