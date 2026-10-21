@@ -2,7 +2,7 @@ import Foundation
 
 /// A running machine's side of the NAT network: finds the guest's address, and runs its port forwards.
 ///
-/// The address comes from the DHCP lease for the machine's MAC address, or the ARP table for a static one,
+/// The address comes from the DHCP lease for the machine's MAC address, or else from the guest agent,
 /// rechecked every few seconds while it runs, so a reboot or a renewed lease shows up too. Forwards listen
 /// whenever the machine runs with its network connected, even before the guest has an address, so a port
 /// that's taken shows up right away.
@@ -12,6 +12,7 @@ final class GuestNetwork {
     private var forwarders: [UUID: PortForwarder] = [:]
     /// What the forwarders connect to; they read it on their own queues.
     private let address = Locked<String?>(nil)
+    private var refreshing = false
 
     init(machine: Machine) {
         self.machine = machine
@@ -44,14 +45,26 @@ final class GuestNetwork {
     }
 
     private func refreshAddress() {
+        guard !refreshing else { return }
+        refreshing = true
         let mac = machine.config.network.macAddress
-        Task.detached {
-            let ip = DHCPLeases.address(for: mac) ?? DHCPLeases.addressFromARP(for: mac)
-            await MainActor.run { [weak self] in
-                guard let self, self.active else { return }
-                self.setAddress(ip)
-            }
+        Task {
+            defer { refreshing = false }
+            var ip = await Task.detached { DHCPLeases.address(for: mac) }.value
+            if ip == nil, machine.config.os == .linux { ip = await addressFromAgent() }
+            guard active else { return }
+            setAddress(ip)
         }
+    }
+
+    /// The source address of the guest's default route, from Hyperbox's agent in the guest, for guests
+    /// whose lease doesn't name their MAC.
+    private func addressFromAgent() async -> String? {
+        let command = "ip -4 -o route get 1.1.1.1 2>/dev/null | sed -n 's/.* src \\([0-9.]*\\).*/\\1/p'"
+        guard let reply = try? await GuestAgent.exec(["command": .string(command), "timeout": 5], machine: machine),
+              let ip = reply["stdout"]?.string?.trimmingCharacters(in: .whitespacesAndNewlines) else { return nil }
+        var parsed = in_addr()
+        return inet_pton(AF_INET, ip, &parsed) == 1 ? ip : nil
     }
 
     private func setAddress(_ ip: String?) {

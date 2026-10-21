@@ -13,6 +13,9 @@ import Foundation
 ///     }
 ///
 /// The MAC drops each byte's leading zero, and `lease` is when the lease expires, in seconds since 1970.
+/// `hw_address` is the client identifier the guest sent: "1," and its MAC for most, but systemd-networkd
+/// (Debian and Ubuntu cloud images) sends a DUID instead ("ff,…"), which can't be traced back to a MAC.
+/// `GuestNetwork` asks the guest agent for those; netplan's `dhcp-identifier: mac` avoids it.
 nonisolated enum DHCPLeases {
     static let file = URL(fileURLWithPath: "/var/db/dhcpd_leases")
 
@@ -49,29 +52,6 @@ nonisolated enum DHCPLeases {
             }
         }
         return leases
-    }
-
-    /// A guest with a static address never asks DHCP, but the Mac still learns it from ARP once the guest
-    /// talks on the network, so the ARP table of the NAT bridges is the fallback. macOS shows the table only
-    /// to apps allowed on the local network (System Settings › Privacy & Security › Local Network).
-    static func addressFromARP(for macAddress: String) -> String? {
-        guard let mac = bytes(macAddress) else { return nil }
-        let arp = Process()
-        arp.executableURL = URL(fileURLWithPath: "/usr/sbin/arp")
-        arp.arguments = ["-an"]
-        let pipe = Pipe()
-        arp.standardOutput = pipe
-        arp.standardError = FileHandle.nullDevice
-        guard (try? arp.run()) != nil else { return nil }
-        let output = String(decoding: pipe.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
-        arp.waitUntilExit()
-        // "? (192.168.64.3) at 2:6c:d:a:1f:3 on bridge100 ifscope [bridge]"
-        for line in output.split(separator: "\n") where line.contains(" on bridge") {
-            let words = line.split(separator: " ")
-            guard words.count > 3, words[2] == "at", bytes(words[3]) == mac else { continue }
-            return String(words[1].dropFirst().dropLast())
-        }
-        return nil
     }
 
     /// "02:6c:0d:0a:1f:03" or "2:6c:d:a:1f:3" → six bytes.
