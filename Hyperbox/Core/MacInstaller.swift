@@ -15,10 +15,12 @@ enum MacInstaller {
         defer { machine.progress = nil }
 
         // Polled rather than observed: KVO would call back off the main actor, and twice a second is plenty.
+        // It holds only the Progress: the installer's machine must be gone before the real one starts,
+        // or it still has the auxiliary storage locked.
+        let progress = installer.progress
         let watcher = Task {
             while !Task.isCancelled {
-                let fraction = installer.progress.fractionCompleted
-                if fraction > (machine.progress ?? 0) { machine.progress = fraction }
+                if progress.fractionCompleted > (machine.progress ?? 0) { machine.progress = progress.fractionCompleted }
                 try? await Task.sleep(for: .milliseconds(500))
             }
         }
