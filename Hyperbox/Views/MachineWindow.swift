@@ -18,6 +18,7 @@ struct MachineWindow: View {
         }
         .agentGlow(machine)
         .ignoresSafeArea()
+        .background(WindowFrameName(name: "machine-\(machine.id.uuidString)"))
         .navigationTitle(machine.config.name)
         .navigationSubtitle(machine.ipAddress ?? machine.state.label)
         .toolbar {
@@ -192,4 +193,21 @@ enum DockIcon {
         renderer.scale = 1
         return renderer.nsImage ?? NSApp.applicationIconImage
     }
+}
+
+/// Each machine's window keeps its own size and place; SwiftUI alone would give every machine the last one's.
+private struct WindowFrameName: NSViewRepresentable {
+    let name: String
+
+    func makeNSView(context: Context) -> NSView {
+        let view = NSView()
+        DispatchQueue.main.async {
+            guard let window = view.window, window.frameAutosaveName != name else { return }
+            window.setFrameUsingName(name)
+            window.setFrameAutosaveName(name)
+        }
+        return view
+    }
+
+    func updateNSView(_ view: NSView, context: Context) {}
 }

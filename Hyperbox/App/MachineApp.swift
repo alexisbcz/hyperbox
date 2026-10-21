@@ -52,6 +52,15 @@ final class MachineDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         guard let machine else { return }
+        // Opened twice (the Dock and the library at once, say): the first process keeps the machine.
+        if let running = MachineStatus.read(for: machine.id), running.pid != getpid() {
+            let id = machine.id
+            Task.detached {
+                _ = try? ControlClient.send(.show, to: id, timeout: 5)
+                await MainActor.run { exit(0) }
+            }
+            return
+        }
         NSApp.applicationIconImage = DockIcon.image(for: machine.config)
         machine.listen()
         clipboard = ClipboardSync(machine)
@@ -87,6 +96,7 @@ final class MachineDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationWillTerminate(_ notification: Notification) {
-        machine?.shutdown()
+        guard let machine, MachineStatus.read(for: machine.id).map({ $0.pid == getpid() }) ?? true else { return }
+        machine.shutdown()
     }
 }

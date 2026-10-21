@@ -92,6 +92,17 @@ final class Machine: NSObject {
     /// Asks the guest to shut down, as pressing the power button would.
     func stop() throws {
         guard let vm = virtualMachine else { return }
+        // macOS answers the power button with a dialog that waits for a click, so with Hyperbox Tools
+        // in the guest, ask it to shut down instead.
+        if config.os == .macOS, state == .running {
+            state = .stopping
+            Task {
+                let asked = (try? await GuestAgent.request(["op": "exec", "command": "shutdown -h now", "admin": true, "timeout": 10],
+                                                          machine: self, timeout: 15)) != nil
+                if !asked, vm.canRequestStop { try? vm.requestStop() }
+            }
+            return
+        }
         if vm.canRequestStop {
             try vm.requestStop()
             state = .stopping
@@ -129,6 +140,8 @@ final class Machine: NSObject {
 
     func fail(_ error: Error) {
         message = error.localizedDescription
+        // A machine that never started, or died, has nothing left to stop.
+        if let vm = virtualMachine, vm.state == .stopped || vm.state == .error { virtualMachine = nil }
         state = .error
     }
 
