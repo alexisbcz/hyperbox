@@ -45,6 +45,7 @@ final class LibraryDelegate: NSObject, NSApplicationDelegate {
         // `-showContainers YES`: open on the Containers page, for screenshots.
         if UserDefaults.standard.bool(forKey: "showContainers") { Library.shared.selection = Library.containersPage }
         StorageTest.runIfRequested()
+        DebugCreate.runIfRequested()
         #endif
     }
 

@@ -58,10 +58,3 @@ enum MachineFactory {
         }
     }
 }
-
-/// Fetches a Linux cloud image and sets up cloud-init to install a desktop on first boot.
-enum LinuxProvisioner {
-    static func create(_ config: inout MachineConfig, entry: CatalogEntry, progress: @escaping MachineFactory.Progress) async throws -> URL {
-        throw ControlError("\(entry.name) isn't built yet.")
-    }
-}

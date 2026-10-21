@@ -5,6 +5,8 @@ import Virtualization
 struct MachineWindow: View {
     let machine: Machine
     @State private var showingSettings = false
+    /// Hides the progress of an install running in the guest, to watch it on the screen.
+    @State private var showingInstallScreen = false
 
     var body: some View {
         // The screen starts below the toolbar, so the guest's own menu bar isn't hidden behind it.
@@ -13,8 +15,9 @@ struct MachineWindow: View {
             if machine.virtualMachine != nil {
                 MachineScreen(machine: machine)
             }
-            if machine.state != .running && machine.state != .installing || machine.virtualMachine == nil {
-                StatusOverlay(machine: machine)
+            if machine.state != .running && machine.state != .installing || machine.virtualMachine == nil
+                || machine.state == .installing && !showingInstallScreen {
+                StatusOverlay(machine: machine, showingScreen: $showingInstallScreen)
             }
         }
         .agentGlow(machine)
@@ -27,6 +30,10 @@ struct MachineWindow: View {
             }
             AgentBadge(machine: machine)
             ToolbarItemGroup {
+                EjectInstallerButton(machine: machine)
+                if machine.state == .installing, machine.virtualMachine != nil, showingInstallScreen {
+                    Button("Show Progress", systemImage: "progress.indicator") { showingInstallScreen = false }
+                }
                 SnapshotMenu(machine: machine)
                 Button("Settings", systemImage: "slider.horizontal.3") { showingSettings = true }
             }
@@ -85,6 +92,7 @@ struct SnapshotMenu: View {
 
 private struct StatusOverlay: View {
     let machine: Machine
+    @Binding var showingScreen: Bool
 
     var body: some View {
         VStack(spacing: 14) {
@@ -101,6 +109,16 @@ private struct StatusOverlay: View {
                     .buttonStyle(.glassProminent)
             case .installing:
                 InstallProgress(os: machine.config.os, progress: machine.progress)
+                if let activity = machine.activity {
+                    Text(activity)
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
+                        .frame(maxWidth: 420)
+                }
+                if machine.virtualMachine != nil {
+                    Button("Show Screen") { showingScreen = true }
+                }
             default:
                 ProgressView()
                 Text(machine.state.label + "…")
@@ -175,6 +193,7 @@ struct MachineCommands: Commands {
                 Button("Force Stop") { Task { await machine.forceStop() } }
                     .keyboardShortcut(".", modifiers: [.command, .option])
                     .disabled(machine.virtualMachine == nil)
+                EjectInstallerButton(machine: machine)
                 Divider()
                 SnapshotMenuItems(machine: machine)
             }

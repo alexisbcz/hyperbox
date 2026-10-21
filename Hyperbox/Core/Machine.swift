@@ -36,6 +36,9 @@ final class Machine: NSObject {
     private(set) var agentActive = false
     @ObservationIgnored private var agentIdle: Task<Void, Never>?
 
+    /// What an install running in the guest is doing, for the window.
+    var activity: String?
+
     /// The view showing the screen, set by `MachineScreen`, for screenshots and agent input.
     @ObservationIgnored weak var screenView: VZVirtualMachineView?
 
@@ -84,6 +87,7 @@ final class Machine: NSObject {
             state = .running
             MacSetup.installToolsWhenReady(self)
             if config.install?.kind == .cloudInit { state = .installing }
+            LinuxGuest.started(self)
         } catch {
             fail(error)
         }
@@ -136,6 +140,14 @@ final class Machine: NSObject {
         virtualMachine = nil
         screenView?.virtualMachine = nil
         state = .stopped
+    }
+
+    /// The guest finished installing itself; it boots as it is from now on.
+    func installFinished() {
+        updateConfig { $0.install = nil }
+        progress = nil
+        activity = nil
+        if state == .installing { state = .running }
     }
 
     func fail(_ error: Error) {
@@ -249,8 +261,10 @@ final class Machine: NSObject {
 extension Machine: VZVirtualMachineDelegate {
     nonisolated func guestDidStop(_ virtualMachine: VZVirtualMachine) {
         MainActor.assumeIsolated {
+            let requested = state == .stopping
             saveThumbnail()
             stopped()
+            LinuxGuest.stopped(self, requested: requested)
         }
     }
 
