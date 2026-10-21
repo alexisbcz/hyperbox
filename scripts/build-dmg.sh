@@ -37,10 +37,19 @@ app="build/Build/Products/Release/$APP_NAME.app"
   echo "Error: the build finished but $app is missing." >&2
   exit 1
 }
-[[ -x "$app/Contents/Resources/bin/hyperbox" ]] || {
-  echo "Error: the hyperbox command line tool is missing from $app." >&2
-  exit 1
-}
+# What the app hands to guests and the container engine; a lost copy phase would fail only at run time.
+for file in bin/hyperbox guest/hyperbox-tools "guest/Install Hyperbox Tools.command"; do
+  [[ -x "$app/Contents/Resources/$file" ]] || {
+    echo "Error: $file is missing from $app, or isn't executable." >&2
+    exit 1
+  }
+done
+for file in linux-agent.py hyperbox-engine.py; do
+  [[ -f "$app/Contents/Resources/$file" ]] || {
+    echo "Error: $file is missing from $app." >&2
+    exit 1
+  }
+done
 built=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$app/Contents/Info.plist")
 [[ "$built" == "$version" ]] || {
   echo "Error: the app says $built, expected $version." >&2

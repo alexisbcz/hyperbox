@@ -68,8 +68,12 @@ def read_line(sock):
 def serve(listener, handle):
     while True:
         try:
-            conn, _ = listener.accept()
+            conn, address = listener.accept()
         except OSError:
+            continue
+        # Only the Mac: with vsock loopback, a container could otherwise reach these services.
+        if listener.family == socket.AF_VSOCK and address[0] != socket.VMADDR_CID_HOST:
+            conn.close()
             continue
         threading.Thread(target=handle, args=(conn,), daemon=True).start()
 

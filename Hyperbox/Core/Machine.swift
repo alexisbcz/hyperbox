@@ -66,7 +66,8 @@ final class Machine: NSObject {
     }
 
     func start() async {
-        guard virtualMachine == nil || state == .stopped || state == .error else { return }
+        // Not while installing (the installer has no VM yet) or while a VM is still alive.
+        guard virtualMachine == nil, state == .stopped || state == .error else { return }
         message = nil
         do {
             if let install = config.install, install.kind == .ipsw {
@@ -101,8 +102,10 @@ final class Machine: NSObject {
         if config.os == .macOS, state == .running {
             state = .stopping
             Task {
-                let asked = (try? await GuestAgent.request(["op": "exec", "command": "shutdown -h now", "admin": true, "timeout": 10],
-                                                          machine: self, timeout: 15)) != nil
+                let reply = try? await GuestAgent.request(["op": "exec", "command": "shutdown -h now", "admin": true, "timeout": 10],
+                                                          machine: self, timeout: 15)
+                // Without the admin helper, `sudo -n` fails and the guest stays up.
+                let asked = reply?["exitCode"]?.int == 0
                 if !asked, vm.canRequestStop { try? vm.requestStop() }
             }
             return

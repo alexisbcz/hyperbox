@@ -426,6 +426,70 @@ nonisolated enum Tools {
             _ = try ControlClient.send(.restoreSnapshot, to: m.config.id, params: ["id": .string(snapshot.id.uuidString)], timeout: 300)
             return [.text("Restored \(m.config.name) to “\(snapshot.name)”. Take a screenshot to see where it is.")]
         },
+
+        Tool(name: "list_containers", title: "List Containers",
+             description: "Lists the Docker containers on Hyperbox's container engine (the one `docker --context hyperbox` uses), running or not, with their published ports. The engine starts if it isn't running.",
+             properties: [:], required: [], readOnly: true, destructive: false) { _, _ in
+            let list = try ContainerEngine.containers()
+            guard !list.isEmpty else { return [.text("No containers.")] }
+            return [.text(list.map { c in
+                let ports = c.publishedPorts.map { "localhost:\($0.publicPort ?? 0)→\($0.privatePort)/\($0.type)" }.joined(separator: ", ")
+                return "\(c.name) (\(c.shortID)) \(c.image): \(c.status)\(ports.isEmpty ? "" : ", \(ports)")"
+            }.joined(separator: "\n"))]
+        },
+
+        Tool(name: "run_container", title: "Run Container",
+             description: "Pulls an image from Docker Hub if needed and runs it in the background on Hyperbox's container engine, like `docker run -d`. Published ports are reachable at localhost on the Mac. Volumes map a named volume or an absolute path under the user's home folder to a path in the container.",
+             properties: [
+                "image": ["type": "string", "description": "The image, e.g. postgres:17 or redis."],
+                "name": ["type": "string", "description": "A name for the container."],
+                "ports": ["type": "array", "items": ["type": "string"], "description": "Ports to publish: \"5432\", \"8080:80\" (Mac:container) or \"53:53/udp\"."],
+                "env": ["type": "object", "additionalProperties": ["type": "string"], "description": "Environment variables."],
+                "volumes": ["type": "object", "additionalProperties": ["type": "string"], "description": "Volume or Mac path → path in the container."],
+                "command": ["type": "array", "items": ["type": "string"], "description": "Replaces the image's command."],
+             ],
+             required: ["image"], readOnly: false, destructive: false) { args, _ in
+            guard let image = args["image"]?.string else { throw ToolFailure("run_container needs an image.") }
+            var ports: [PortMapping] = []
+            for value in args["ports"]?.array ?? [] {
+                guard let text = value.string ?? value.int.map(String.init), let port = PortMapping(text) else {
+                    throw ToolFailure("“\(value)” isn't a port like \"5432\" or \"8080:80\".")
+                }
+                ports.append(port)
+            }
+            func strings(_ key: String) -> [String: String] {
+                guard case .object(let object)? = args[key] else { return [:] }
+                return object.compactMapValues { $0.string ?? $0.double.map { String(Int($0)) } }
+            }
+            let id = try ContainerEngine.run(image: image, name: args["name"]?.string, ports: ports, env: strings("env"),
+                                             volumes: strings("volumes"), command: args["command"]?.array?.compactMap(\.string))
+            let published = ports.map { "localhost:\($0.host)" }.joined(separator: ", ")
+            return [.text("Started \(image) as container \(id.prefix(12))\(published.isEmpty ? "" : ", reachable at \(published)").")]
+        },
+
+        Tool(name: "stop_container", title: "Stop Container",
+             description: "Stops a running container, by name or id. remove: true deletes it too (its named volumes stay).",
+             properties: ["container": ["type": "string", "description": "The container's name or id."],
+                          "remove": ["type": "boolean", "description": "Delete the container after stopping it."]],
+             required: ["container"], readOnly: false, destructive: true) { args, _ in
+            guard let container = args["container"]?.string else { throw ToolFailure("stop_container needs a container.") }
+            if args["remove"]?.bool == true {
+                try ContainerEngine.remove(container)
+                return [.text("Removed \(container).")]
+            }
+            try ContainerEngine.stop(container)
+            return [.text("Stopped \(container).")]
+        },
+
+        Tool(name: "container_logs", title: "Container Logs",
+             description: "The last lines a container printed, by name or id.",
+             properties: ["container": ["type": "string", "description": "The container's name or id."],
+                          "lines": ["type": "integer", "description": "How many lines, 200 by default."]],
+             required: ["container"], readOnly: true, destructive: false) { args, _ in
+            guard let container = args["container"]?.string else { throw ToolFailure("container_logs needs a container.") }
+            let logs = try ContainerEngine.logs(container, tail: args["lines"]?.int ?? 200)
+            return [.text(logs.isEmpty ? "No output yet." : logs)]
+        },
     ]
 
     private static func pointerTool(_ name: String, _ title: String, _ description: String, button: String, count: Int) -> Tool {

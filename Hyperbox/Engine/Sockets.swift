@@ -35,11 +35,13 @@ nonisolated enum Sockets {
     }
 
     /// A TCP or UDP socket bound to `port` on the loopback address, 127.0.0.1 or ::1.
-    static func bindLoopback(port: Int, ipv6: Bool, udp: Bool) -> Int32? {
+    /// `reuse` lets a listener come back while old connections linger in TIME_WAIT, but it also lets it bind
+    /// over another app listening on all interfaces, so checks for a free port pass false.
+    static func bindLoopback(port: Int, ipv6: Bool, udp: Bool, reuse: Bool = true) -> Int32? {
         let fd = socket(ipv6 ? AF_INET6 : AF_INET, udp ? SOCK_DGRAM : SOCK_STREAM, 0)
         guard fd >= 0 else { return nil }
         var on: Int32 = 1
-        setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &on, socklen_t(MemoryLayout<Int32>.size))
+        if reuse { setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &on, socklen_t(MemoryLayout<Int32>.size)) }
         if ipv6 { setsockopt(fd, IPPROTO_IPV6, IPV6_V6ONLY, &on, socklen_t(MemoryLayout<Int32>.size)) }
         let bound: Int32
         if ipv6 {
@@ -66,7 +68,7 @@ nonisolated enum Sockets {
 
     /// Whether something on the Mac already listens on the TCP port.
     static func isFree(port: Int) -> Bool {
-        guard let fd = bindLoopback(port: port, ipv6: false, udp: false) else { return false }
+        guard let fd = bindLoopback(port: port, ipv6: false, udp: false, reuse: false) else { return false }
         close(fd)
         return true
     }
@@ -199,7 +201,7 @@ nonisolated final class ContainerPorts: @unchecked Sendable {
                 continue
             }
             // Both loopbacks, since "localhost" is ::1 first for many clients.
-            let fds = [false, true].compactMap { Sockets.bindLoopback(port: key.port, ipv6: $0, udp: false) }
+            let fds = [false, true].compactMap { Sockets.bindLoopback(port: key.port, ipv6: $0, udp: false, reuse: false) }
             guard !fds.isEmpty else { blocked.insert(key); continue }
             blocked.remove(key)
             listeners[key] = fds.map { fd in

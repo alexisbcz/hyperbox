@@ -37,7 +37,7 @@ struct StorageSection: View {
                                 restore: { restore(info) }, delete: { delete(info) })
                 }
                 Button("Take Snapshot…") { take() }
-                    .disabled(![MachineState.stopped, .running, .paused, .installing, .error].contains(library.state(of: entry.id)))
+                    .disabled(![MachineState.stopped, .running, .paused, .error].contains(library.state(of: entry.id)))
             } header: {
                 Text("Snapshots")
             } footer: {

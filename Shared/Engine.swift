@@ -147,6 +147,12 @@ nonisolated enum EngineAgent {
         let data = try PropertyListSerialization.data(fromPropertyList: contents(executable: executable), format: .xml, options: 0)
         let changed = (try? Data(contentsOf: plist)) != data
         if changed {
+            // A copy run from the DMG, or moved aside by Gatekeeper, would leave launchd pointing at a path
+            // that soon disappears; keep whatever an installed copy registered.
+            if executable.hasPrefix("/Volumes/") || executable.contains("/AppTranslocation/"), isLoaded { return }
+            // Reloading stops a running engine and every container in it; the new path waits for a launch
+            // that finds it stopped.
+            if isLoaded, EngineStatus.read() != nil { return }
             try data.write(to: plist, options: .atomic)
             if isLoaded { launchctl(["bootout", target]) }
         }

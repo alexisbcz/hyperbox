@@ -38,6 +38,11 @@ nonisolated enum Paths {
 
     static func ensure(_ url: URL) {
         try? FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
+        // ~/.hyperbox holds the sockets that drive machines and Docker: only you get in.
+        if url.path.hasPrefix(home.path) {
+            chmod(home.path, 0o700)
+            chmod(url.path, 0o700)
+        }
     }
 }
 

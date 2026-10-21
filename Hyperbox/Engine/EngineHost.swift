@@ -28,6 +28,7 @@ final class EngineHost: NSObject {
     private var memoryLimit: UInt64?
     private var runningContainers: Int?
     private var lastBusy = Date()
+    private var failedPings = 0
     private var listener: DispatchSourceRead?
     private var events: Task<Void, Never>?
     private var signals: [DispatchSourceSignal] = []
@@ -286,6 +287,14 @@ final class EngineHost: NSObject {
             return
         }
         Task {
+            // A guest that panicked keeps "running" but answers nothing, and the connections stuck on it
+            // would keep it from ever idling out. Quitting closes them; the next docker command boots fresh.
+            let alive = await Task.detached { (try? ContainerEngine.ping(timeout: 5)) != nil }.value
+            failedPings = alive ? 0 : failedPings + 1
+            if failedPings >= 3 {
+                quit(reason: "Docker stopped answering.")
+                return
+            }
             await refreshGuest()
             await syncPorts()
             if (runningContainers ?? 0) > 0 || connections.value > 0 || (ports?.openConnections ?? 0) > 0 {
@@ -400,7 +409,7 @@ final class EngineHost: NSObject {
 
         var storage: [VZStorageDeviceConfiguration] = [
             VZVirtioBlockDeviceConfiguration(attachment: try VZDiskImageStorageDeviceAttachment(
-                url: EnginePaths.disk, readOnly: false, cachingMode: .automatic, synchronizationMode: .fsync)),
+                url: EnginePaths.disk, readOnly: false, cachingMode: .cached, synchronizationMode: .fsync)),
         ]
         if !ready {
             storage.append(VZVirtioBlockDeviceConfiguration(attachment: try VZDiskImageStorageDeviceAttachment(url: EnginePaths.seed, readOnly: true)))

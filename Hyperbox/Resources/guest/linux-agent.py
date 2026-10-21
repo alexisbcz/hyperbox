@@ -223,7 +223,11 @@ def main():
     server.listen(16)
     log("listening on vsock port", PORT)
     while True:
-        connection, _ = server.accept()
+        connection, (cid, _) = server.accept()
+        # Only the Mac: with vsock loopback, any process in the guest could connect and run commands as root.
+        if cid != socket.VMADDR_CID_HOST:
+            connection.close()
+            continue
         threading.Thread(target=serve, args=(connection,), daemon=True).start()
 
 

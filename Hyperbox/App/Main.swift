@@ -5,6 +5,8 @@ import SwiftUI
 @main
 enum Main {
     static func main() {
+        // A client that hangs up mid-reply (a Ctrl-C'd `hyperbox exec`) must not take the machine down with it.
+        signal(SIGPIPE, SIG_IGN)
         if MachineApp.bundlePath != nil {
             MachineApp.main()
         } else if CommandLine.arguments.contains(EngineAgent.argument) {

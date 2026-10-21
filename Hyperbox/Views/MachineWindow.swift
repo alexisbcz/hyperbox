@@ -183,7 +183,7 @@ struct MachineCommands: Commands {
             if let machine {
                 Button("Start") { Task { await machine.start() } }
                     .keyboardShortcut("r")
-                    .disabled(machine.virtualMachine != nil)
+                    .disabled(machine.virtualMachine != nil || ![.stopped, .error].contains(machine.state))
                 Button(machine.state == .paused ? "Resume" : "Pause") {
                     Task { machine.state == .paused ? try? await machine.resume() : try? await machine.pause() }
                 }

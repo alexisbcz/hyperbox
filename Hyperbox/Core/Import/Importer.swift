@@ -147,13 +147,15 @@ enum Importer {
         Library.shared.add(url)
     }
 
-    /// Two machines can't share an id: it names their control socket. The copy keeps its MAC address
-    /// and machine identifier, so its snapshots and suspended state still resume.
+    /// Two machines can't share an id: it names their control socket. Nor a MAC address, or DHCP would give
+    /// both the same IP. The copy keeps its machine identifier; a saved state that no longer matches the new
+    /// MAC boots fresh instead of resuming.
     private static func makeUnique(_ url: URL) throws {
         var config = try MachineConfig.load(from: url)
         guard Library.shared.machines.contains(where: { $0.id == config.id && $0.url.standardizedFileURL != url.standardizedFileURL }) else { return }
         config.id = UUID()
         config.name = Library.shared.uniqueName(config.name)
+        config.network.macAddress = MachineConfig.Network.randomMAC()
         try config.save(to: url)
     }
 

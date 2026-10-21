@@ -7,6 +7,9 @@ import Virtualization
 /// processors, memory or devices after a snapshot means restoring it boots the restored disk cold instead.
 enum Snapshots {
     static func handle(_ method: ControlMethod, params: JSONValue, machine: Machine) async throws -> JSONValue {
+        if method != .listSnapshots, machine.state == .installing {
+            throw ControlError("\(machine.config.name) is still installing; take snapshots once it's done.")
+        }
         switch method {
         case .listSnapshots:
             return try JSONValue(encoding: SnapshotFiles.list(machine.bundle))
@@ -212,7 +215,7 @@ struct SnapshotMenuItems: View {
 
     var body: some View {
         let snapshots = SnapshotList.of(machine.bundle).items
-        let busy = [.saving, .restoring, .starting, .stopping].contains(machine.state)
+        let busy = [.saving, .restoring, .starting, .stopping, .installing].contains(machine.state)
         Button("Take Snapshot…") {
             guard let name = SnapshotPrompt.name() else { return }
             Task {

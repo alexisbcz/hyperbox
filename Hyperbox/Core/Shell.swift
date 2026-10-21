@@ -1,19 +1,26 @@
 import Foundation
 
 enum Shell {
-    /// GUI apps don't inherit the login shell's PATH, so borrow it once.
-    static let environment: [String: String] = {
+    /// GUI apps don't inherit the login shell's PATH, so borrow it once. A slow or chatty profile can't
+    /// hang the app (it gives up after 3 seconds) or garble PATH (it's read between markers).
+    nonisolated static let environment: [String: String] = {
         var env = ProcessInfo.processInfo.environment
         let shell = env["SHELL"] ?? "/bin/zsh"
         let p = Process(), out = Pipe()
         p.executableURL = URL(fileURLWithPath: shell)
-        p.arguments = ["-l", "-c", "printf %s \"$PATH\""]
+        p.arguments = ["-l", "-c", "printf '\\n<<PATH>>%s<<END>>' \"$PATH\""]
         p.standardOutput = out
         p.standardError = FileHandle.nullDevice
+        p.standardInput = FileHandle.nullDevice
         if (try? p.run()) != nil {
-            p.waitUntilExit()
-            let path = String(decoding: out.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
-            if !path.isEmpty { env["PATH"] = path }
+            let deadline = Date().addingTimeInterval(3)
+            while p.isRunning, Date() < deadline { usleep(20_000) }
+            if p.isRunning { p.terminate() }
+            let text = String(decoding: out.fileHandleForReading.availableData, as: UTF8.self)
+            if let start = text.range(of: "<<PATH>>"), let end = text.range(of: "<<END>>", range: start.upperBound..<text.endIndex) {
+                let path = String(text[start.upperBound..<end.lowerBound])
+                if !path.isEmpty { env["PATH"] = path }
+            }
         }
         return env
     }()

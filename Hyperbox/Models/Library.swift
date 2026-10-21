@@ -29,12 +29,23 @@ final class Library {
 
     private init() {
         Paths.ensure(Paths.machines)
+        Self.removeStaleRunFiles()
         reload()
         timer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated {
                 self?.refreshStatuses()
                 self?.refreshConfigs()
             }
+        }
+    }
+
+    /// A machine process that crashed leaves its status and socket in ~/.hyperbox/run.
+    private static func removeStaleRunFiles() {
+        let fm = FileManager.default
+        for url in (try? fm.contentsOfDirectory(at: Paths.run, includingPropertiesForKeys: nil)) ?? [] where url.pathExtension == "json" {
+            guard let id = UUID(uuidString: url.deletingPathExtension().lastPathComponent), MachineStatus.read(for: id) == nil else { continue }
+            try? fm.removeItem(at: url)
+            try? fm.removeItem(at: Paths.socket(for: id))
         }
     }
 
@@ -142,6 +153,10 @@ final class Library {
 
     /// A free bundle name in the library, like "Ubuntu 2".
     static func newBundleURL(named name: String) -> URL {
+        // A "/" would make a folder the library never looks in, and a leading "." would hide the machine.
+        var name = name.replacingOccurrences(of: "/", with: "-").replacingOccurrences(of: ":", with: "-")
+        while name.hasPrefix(".") { name.removeFirst() }
+        if name.isEmpty { name = "Machine" }
         var candidate = Paths.machines.appending(path: "\(name).\(Paths.bundleExtension)")
         var n = 2
         while FileManager.default.fileExists(atPath: candidate.path) {

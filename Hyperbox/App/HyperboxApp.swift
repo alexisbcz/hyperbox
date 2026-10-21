@@ -38,6 +38,8 @@ struct HyperboxApp: App {
 final class LibraryDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         _ = Updater.shared
+        // Read the login shell's PATH now, off the main thread, before a menu item needs it.
+        Task.detached { _ = Shell.environment }
         Task { await AgentIntegrations.repair() }
         Containers.registerAgent()
         #if DEBUG
