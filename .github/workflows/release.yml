@@ -44,13 +44,19 @@ jobs:
             build/Hyperbox-*.dmg.sha256
 
       # A draft first, so the app never sees a latest release without its appcast.
+      # When the release already exists (made by hand, or a re-run), its files are replaced instead.
       - name: Draft the release
         if: github.ref_type == 'tag'
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "$GITHUB_REF_NAME" build/Hyperbox-*.dmg build/Hyperbox-*.dmg.sha256 --title "Hyperbox ${GITHUB_REF_NAME#v}" --generate-notes --draft
+        run: |
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" build/Hyperbox-*.dmg build/Hyperbox-*.dmg.sha256 --clobber
+          else
+            gh release create "$GITHUB_REF_NAME" build/Hyperbox-*.dmg build/Hyperbox-*.dmg.sha256 --title "Hyperbox ${GITHUB_REF_NAME#v}" --generate-notes --draft
+          fi
 
-      # Signs the DMG with the key from Sparkle's generate_keys (`generate_keys -x key.txt` exports it).
+      # Signs the DMG with the key from Sparkle's generate_keys (`generate_keys --account hyperbox -x key.txt` exports it).
       - name: Publish the appcast
         if: github.ref_type == 'tag'
         env:
@@ -60,5 +66,5 @@ jobs:
           [[ -n "$SPARKLE_PRIVATE_KEY" ]] || { echo "::error::The SPARKLE_PRIVATE_KEY secret isn't set."; exit 1; }
           gh release view "$GITHUB_REF_NAME" --json body --jq .body >build/notes.md
           scripts/build-appcast.sh build/Hyperbox-*.dmg build/notes.md
-          gh release upload "$GITHUB_REF_NAME" build/appcast.xml
+          gh release upload "$GITHUB_REF_NAME" build/appcast.xml --clobber
           gh release edit "$GITHUB_REF_NAME" --draft=false --latest
