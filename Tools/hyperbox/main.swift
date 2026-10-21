@@ -11,6 +11,7 @@ func usage() -> Never {
       start <machine>            start a machine
       stop <machine>             shut a machine down
       status <machine>           print a machine's state as JSON
+      containers <command>       the Docker engine: setup, status, start, stop
 
     A machine is its name or its id.
     """)
@@ -72,6 +73,8 @@ case "status":
         let result = try ControlClient.send(.status, to: find(name).config.id)
         print(String(decoding: try JSONEncoder.machine.encode(result), as: UTF8.self))
     } catch { fail(error.localizedDescription) }
+case "containers", "container":
+    containers(arguments)
 default:
     fail("unknown command \(command) (try --help)")
 }
