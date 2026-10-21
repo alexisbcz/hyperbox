@@ -10,6 +10,9 @@ struct SettingsView: View {
             Tab("General", systemImage: "gearshape", value: "general") {
                 GeneralSettings()
             }
+            Tab("Agents", systemImage: "sparkles", value: "agents") {
+                AgentsSettings()
+            }
         }
         .frame(width: 520)
     }

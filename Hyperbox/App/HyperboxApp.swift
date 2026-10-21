@@ -38,6 +38,7 @@ struct HyperboxApp: App {
 final class LibraryDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         _ = Updater.shared
+        Task { await AgentIntegrations.repair() }
     }
 
     func application(_ application: NSApplication, open urls: [URL]) {
