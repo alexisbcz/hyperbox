@@ -120,15 +120,15 @@ nonisolated final class PortForwarder: @unchecked Sendable {
             guest.stateUpdateHandler = { [self] state in
                 switch state {
                 case .ready:
+                    // From here on the receives see every close and error. The connection itself can fail
+                    // once the guest has closed, while its last bytes are still on their way to the client.
+                    guest.stateUpdateHandler = nil
                     pump(from: client, to: guest)
                     pump(from: guest, to: client)
                 // A closed port in the guest shows up as waiting, retrying forever; give up instead.
                 case .failed, .waiting: close()
                 default: break
                 }
-            }
-            client.stateUpdateHandler = { [self] state in
-                if case .failed = state { close() }
             }
             guest.start(queue: queue)
             client.start(queue: queue)
@@ -184,7 +184,6 @@ nonisolated final class PortForwarder: @unchecked Sendable {
             guard !closed else { return }
             closed = true
             idle?.cancel()
-            client.stateUpdateHandler = nil
             guest.stateUpdateHandler = nil
             client.cancel()
             guest.cancel()
