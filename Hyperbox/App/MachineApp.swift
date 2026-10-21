@@ -24,6 +24,7 @@ struct MachineApp: App {
             }
             .frame(minWidth: 640, minHeight: 400)
         }
+        .defaultSize(delegate.machine?.config.display.sizeInPoints ?? CGSize(width: 1280, height: 800))
         .windowToolbarStyle(.unified(showsTitle: true))
         .commands {
             CommandGroup(replacing: .newItem) {}
@@ -35,6 +36,7 @@ struct MachineApp: App {
 final class MachineDelegate: NSObject, NSApplicationDelegate {
     let machine: Machine?
     let error: String?
+    private var clipboard: ClipboardSync?
 
     override init() {
         do {
@@ -52,6 +54,7 @@ final class MachineDelegate: NSObject, NSApplicationDelegate {
         guard let machine else { return }
         NSApp.applicationIconImage = DockIcon.image(for: machine.config)
         machine.listen()
+        clipboard = ClipboardSync(machine)
         Task { await machine.start() }
     }
 

@@ -48,6 +48,8 @@ struct MachineWindow: View {
         .onDrop(of: [.fileURL], isTargeted: nil) { providers in
             FileDrop.drop(providers, on: machine)
         }
+        .overlay(alignment: .bottom) { FileDropToast() }
+        .animation(.snappy, value: FileDrop.shared.transfer)
     }
 }
 
@@ -95,12 +97,7 @@ private struct StatusOverlay: View {
                 Button("Start") { Task { await machine.start() } }
                     .buttonStyle(.glassProminent)
             case .installing:
-                Text("Installing \(machine.config.os.label)…")
-                if let progress = machine.progress {
-                    ProgressView(value: progress).frame(width: 260)
-                } else {
-                    ProgressView()
-                }
+                InstallProgress(os: machine.config.os, progress: machine.progress)
             default:
                 ProgressView()
                 Text(machine.state.label + "…")
@@ -110,6 +107,30 @@ private struct StatusOverlay: View {
         .padding(40)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(.black.opacity(0.85))
+    }
+}
+
+/// How far an install has got, for the machine's window and the library.
+struct InstallProgress: View {
+    let os: GuestOS
+    let progress: Double?
+
+    var body: some View {
+        VStack(spacing: 8) {
+            Text("Installing \(os.label)…").font(.headline)
+            ProgressView(value: progress)
+                .frame(width: 280)
+            Group {
+                if let progress, progress > 0 {
+                    Text("\(Int(progress * 100))% · The machine starts on its own when it's done.")
+                } else {
+                    Text("Getting ready…")
+                }
+            }
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .monospacedDigit()
+        }
     }
 }
 
