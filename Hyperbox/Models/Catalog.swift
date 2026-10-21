@@ -20,7 +20,7 @@ enum Catalog {
                      summary: "Downloaded from Apple, with Metal graphics.", defaultDiskGB: 80),
         CatalogEntry(id: "ubuntu", name: "Ubuntu", version: "24.04 LTS", os: .linux, symbol: "circle.circle",
                      summary: "Desktop, installed on its own."),
-        CatalogEntry(id: "fedora", name: "Fedora", version: "42", os: .linux, symbol: "f.circle",
+        CatalogEntry(id: "fedora", name: "Fedora", version: "44", os: .linux, symbol: "f.circle",
                      summary: "Workstation, installed on its own."),
         CatalogEntry(id: "debian", name: "Debian", version: "13", os: .linux, symbol: "d.circle",
                      summary: "Desktop, installed on its own."),

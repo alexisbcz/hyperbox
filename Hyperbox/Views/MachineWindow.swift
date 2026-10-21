@@ -5,6 +5,8 @@ import Virtualization
 struct MachineWindow: View {
     let machine: Machine
     @State private var showingSettings = false
+    /// Hides the progress of an install running in the guest, to watch it on the screen.
+    @State private var showingInstallScreen = false
 
     var body: some View {
         ZStack {
@@ -12,8 +14,9 @@ struct MachineWindow: View {
             if machine.virtualMachine != nil {
                 MachineScreen(machine: machine)
             }
-            if machine.state != .running && machine.state != .installing || machine.virtualMachine == nil {
-                StatusOverlay(machine: machine)
+            if machine.state != .running && machine.state != .installing || machine.virtualMachine == nil
+                || machine.state == .installing && !showingInstallScreen {
+                StatusOverlay(machine: machine, showingScreen: $showingInstallScreen)
             }
         }
         .ignoresSafeArea()
@@ -24,6 +27,10 @@ struct MachineWindow: View {
                 PowerButtons(machine: machine)
             }
             ToolbarItemGroup {
+                EjectInstallerButton(machine: machine)
+                if machine.state == .installing, machine.virtualMachine != nil, showingInstallScreen {
+                    Button("Show Progress", systemImage: "progress.indicator") { showingInstallScreen = false }
+                }
                 SnapshotMenu(machine: machine)
                 Button("Settings", systemImage: "slider.horizontal.3") { showingSettings = true }
             }
@@ -80,6 +87,7 @@ struct SnapshotMenu: View {
 
 private struct StatusOverlay: View {
     let machine: Machine
+    @Binding var showingScreen: Bool
 
     var body: some View {
         VStack(spacing: 14) {
@@ -95,11 +103,21 @@ private struct StatusOverlay: View {
                 Button("Start") { Task { await machine.start() } }
                     .buttonStyle(.glassProminent)
             case .installing:
-                Text("Installing \(machine.config.os.label)…")
+                Text("Installing \(Catalog.entry(machine.config.distribution)?.name ?? machine.config.os.label)…")
                 if let progress = machine.progress {
                     ProgressView(value: progress).frame(width: 260)
                 } else {
                     ProgressView()
+                }
+                if let activity = machine.activity {
+                    Text(activity)
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
+                        .frame(maxWidth: 420)
+                }
+                if machine.virtualMachine != nil {
+                    Button("Show Screen") { showingScreen = true }
                 }
             default:
                 ProgressView()
@@ -151,6 +169,7 @@ struct MachineCommands: Commands {
                 Button("Force Stop") { Task { await machine.forceStop() } }
                     .keyboardShortcut(".", modifiers: [.command, .option])
                     .disabled(machine.virtualMachine == nil)
+                EjectInstallerButton(machine: machine)
                 Divider()
                 SnapshotMenuItems(machine: machine)
             }

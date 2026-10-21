@@ -84,6 +84,8 @@ enum VirtualMachineBuilder {
             vm.consoleDevices = [console]
 
             if let iso = extras.installerISO {
+                // On a controller of its own making, so "Eject Installer" can detach it while the machine runs.
+                vm.usbControllers = [VZXHCIControllerConfiguration()]
                 storage.append(VZUSBMassStorageDeviceConfiguration(attachment: try VZDiskImageStorageDeviceAttachment(url: iso, readOnly: true)))
             }
             if FileManager.default.fileExists(atPath: bundle.seed.path) {

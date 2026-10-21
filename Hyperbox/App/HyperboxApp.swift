@@ -38,6 +38,9 @@ struct HyperboxApp: App {
 final class LibraryDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         _ = Updater.shared
+        #if DEBUG
+        DebugCreate.runIfRequested()
+        #endif
     }
 
     func application(_ application: NSApplication, open urls: [URL]) {
