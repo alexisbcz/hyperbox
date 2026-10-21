@@ -15,6 +15,14 @@ import Virtualization
 ///
 /// `ready` is false while a first-boot setup is still running. `exec` runs `/bin/sh -c command` as the
 /// desktop user, or as root when `admin` is true. Paths starting with `~` are the desktop user's home.
+///
+/// Version 2 adds, so big files can move in pieces without one huge line:
+///
+///     writeFile  "append": Bool   add to the end of the file instead of replacing it
+///                "unique": Bool   if the path is taken, write "Name 2.ext" instead; the reply's `path` says where
+///     readFile   "offset": Int, "length": Int   read only that part; the reply adds "size", the whole file's
+///
+/// Agents ignore keys they don't know, so check `version` from ping before relying on these.
 enum GuestAgent {
     static func request(_ request: [String: JSONValue], machine: Machine, timeout: TimeInterval = 30) async throws -> JSONValue {
         guard let vm = machine.virtualMachine, let device = vm.socketDevices.first as? VZVirtioSocketDevice else {
