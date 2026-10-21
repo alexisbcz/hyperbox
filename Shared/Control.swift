@@ -204,3 +204,14 @@ nonisolated extension sockaddr_un {
         return addr
     }
 }
+
+nonisolated extension JSONValue: ExpressibleByStringLiteral, ExpressibleByBooleanLiteral, ExpressibleByIntegerLiteral,
+    ExpressibleByFloatLiteral, ExpressibleByArrayLiteral, ExpressibleByDictionaryLiteral, ExpressibleByNilLiteral {
+    init(stringLiteral value: String) { self = .string(value) }
+    init(booleanLiteral value: Bool) { self = .bool(value) }
+    init(integerLiteral value: Int) { self = .number(Double(value)) }
+    init(floatLiteral value: Double) { self = .number(value) }
+    init(arrayLiteral elements: JSONValue...) { self = .array(elements) }
+    init(dictionaryLiteral elements: (String, JSONValue)...) { self = .object(Dictionary(elements, uniquingKeysWith: { $1 })) }
+    init(nilLiteral: ()) { self = .null }
+}
