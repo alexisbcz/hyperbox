@@ -1,0 +1,61 @@
+name: Hyperbox
+options:
+  bundleIdPrefix: dev.alexis
+  deploymentTarget:
+    macOS: "26.0"
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    MARKETING_VERSION: "0.1.0"
+    # Sparkle compares build numbers, so they follow the version: a 1.2.3 build updates to 1.2.4.
+    CURRENT_PROJECT_VERSION: $(MARKETING_VERSION)
+packages:
+  Sparkle:
+    url: https://github.com/sparkle-project/Sparkle
+    from: 2.10.0
+targets:
+  Hyperbox:
+    type: application
+    platform: macOS
+    sources:
+      - path: Hyperbox
+        excludes:
+          - Info.plist
+          - Hyperbox.entitlements
+      - path: Shared
+    dependencies:
+      - package: Sparkle
+      # The `hyperbox` command line tool, at Contents/Resources/bin/hyperbox.
+      - target: hyperbox-cli
+        copy:
+          destination: resources
+          subpath: bin
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: dev.alexis.Hyperbox
+        GENERATE_INFOPLIST_FILE: YES
+        # Sparkle's keys and the document type, which the generated Info.plist has no settings for.
+        INFOPLIST_FILE: Hyperbox/Info.plist
+        CODE_SIGN_ENTITLEMENTS: Hyperbox/Hyperbox.entitlements
+        INFOPLIST_KEY_CFBundleDisplayName: Hyperbox
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.developer-tools
+        INFOPLIST_KEY_NSMicrophoneUsageDescription: Hyperbox passes your microphone to virtual machines you allow to use it.
+        ENABLE_APP_SANDBOX: NO
+        ENABLE_HARDENED_RUNTIME: NO
+        CODE_SIGN_IDENTITY: "-"
+        SWIFT_DEFAULT_ACTOR_ISOLATION: MainActor
+        SWIFT_APPROACHABLE_CONCURRENCY: YES
+  hyperbox-cli:
+    type: tool
+    platform: macOS
+    sources:
+      - path: Tools/hyperbox
+      - path: Shared
+    settings:
+      base:
+        PRODUCT_NAME: hyperbox
+        PRODUCT_BUNDLE_IDENTIFIER: dev.alexis.Hyperbox.cli
+        CODE_SIGN_IDENTITY: "-"
+        SKIP_INSTALL: YES
+        SWIFT_APPROACHABLE_CONCURRENCY: YES
