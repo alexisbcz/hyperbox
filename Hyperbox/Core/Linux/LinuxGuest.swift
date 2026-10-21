@@ -26,6 +26,9 @@ enum LinuxGuest {
         if machine.config.install?.kind == .cloudInit {
             followInstall(machine, vm: vm)
         }
+        #if DEBUG
+        DebugTyping.watch(machine)
+        #endif
     }
 
     /// Call when the guest has stopped; `requested` when the Mac asked it to.
