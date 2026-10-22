@@ -255,6 +255,13 @@ final class Machine: NSObject {
             guard config.agentControl else { throw ControlError("Agent control is off for \(config.name). Turn it on in the machine's settings.") }
             noteAgentActivity()
             return try await GuestAgent.exec(params, machine: self)
+        case .startRecording:
+            guard config.agentControl else { throw ControlError("Agent control is off for \(config.name). Turn it on in the machine's settings.") }
+            guard let path = params["path"]?.string else { throw ControlError("startRecording needs a path.") }
+            try ScreenRecording.start(self, to: URL(fileURLWithPath: path))
+            return .null
+        case .stopRecording:
+            return try await ScreenRecording.stop(self)
         case .listSnapshots, .takeSnapshot, .restoreSnapshot, .deleteSnapshot:
             return try await Snapshots.handle(method, params: params, machine: self)
         }

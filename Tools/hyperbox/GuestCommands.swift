@@ -45,4 +45,25 @@ nonisolated extension Command {
         }
         try png.write(to: URL(fileURLWithPath: (path as NSString).expandingTildeInPath))
     }
+
+    static let record = Command(name: "record", arguments: "<machine> start <file.mov> | <machine> stop",
+                                summary: "film the guest's screen to a movie",
+                                details: """
+                                Records the screen at 30 frames a second, with the pointer that agents and `hyperbox` move drawn in, \
+                                until `hyperbox record <machine> stop`. The machine's window must be open.
+                                """) { args in
+        let target = try Target.find(try args.next("a machine"))
+        switch try args.next("start or stop") {
+        case "start":
+            let path = URL(fileURLWithPath: (try args.next("a file to save to") as NSString).expandingTildeInPath).path
+            try args.done()
+            try target.send(.startRecording, ["path": .string(path)])
+        case "stop":
+            try args.done()
+            let result = try target.send(.stopRecording, timeout: 60)
+            print("\(result["path"]?.string ?? ""): \(String(format: "%.1f", result["seconds"]?.double ?? 0)) s")
+        case let other:
+            throw Failure("record takes start or stop, not \(other).")
+        }
+    }
 }

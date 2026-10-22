@@ -34,6 +34,10 @@ nonisolated enum ControlMethod: String, CaseIterable, Sendable {
     case takeSnapshot
     /// Params: `id`.
     case restoreSnapshot, deleteSnapshot
+    /// Films the screen to a QuickTime movie, with the pointer agents move drawn in. Params: `path`.
+    case startRecording
+    /// → `{"path": String, "seconds": Double}`
+    case stopRecording
     /// Rereads config.json and applies what can change while running (name, shared folders, network, ports).
     case reloadConfig
 }

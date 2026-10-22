@@ -98,7 +98,21 @@ enum AgentControl {
     // MARK: - Mouse
 
     /// Where the guest's pointer was last put, in window coordinates, so drags and scrolls start there.
-    private static var pointer: CGPoint?
+    private(set) static var pointer: CGPoint?
+    /// Whether the left button is held, for recordings to show the press.
+    private(set) static var isPressed = false
+
+    /// A point in window coordinates as pixels of the guest's screen, `size` big, (0, 0) at the top left.
+    static func pixel(of point: CGPoint, in view: VZVirtualMachineView, screen size: CGSize) -> CGPoint {
+        let local = view.convert(point, from: nil)
+        let bounds = view.bounds
+        let scale = min(bounds.width / size.width, bounds.height / size.height)
+        let shown = CGSize(width: size.width * scale, height: size.height * scale)
+        let origin = CGPoint(x: bounds.midX - shown.width / 2, y: bounds.midY - shown.height / 2)
+        let x = (local.x - origin.x) / scale
+        let y = view.isFlipped ? (local.y - origin.y) / scale : (origin.y + shown.height - local.y) / scale
+        return CGPoint(x: x, y: y)
+    }
 
     private static func move(to point: CGPoint, in view: VZVirtualMachineView) async throws {
         send(mouse: .mouseMoved, at: point, in: view)
@@ -143,6 +157,7 @@ enum AgentControl {
             with: type, location: point, modifierFlags: modifiers, timestamp: ProcessInfo.processInfo.systemUptime,
             windowNumber: window.windowNumber, context: nil, eventNumber: 0, clickCount: clickCount, pressure: type == .leftMouseDown ? 1 : 0)
         else { return }
+        if type == .leftMouseDown { isPressed = true } else if type == .leftMouseUp { isPressed = false }
         switch type {
         case .mouseMoved: view.mouseMoved(with: event)
         case .leftMouseDown: view.mouseDown(with: event)
