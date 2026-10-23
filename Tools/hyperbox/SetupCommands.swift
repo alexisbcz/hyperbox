@@ -34,16 +34,17 @@ nonisolated extension Command {
         print("Made \(name) from \(source.name)\(snapshot.map { "'s snapshot \($0.name)" } ?? ""). Start it with `hyperbox start \(quoted(name))`.")
     }
 
-    static let provision = Command(name: "provision", arguments: "<machine> <recipe or script>... [--timeout <seconds>] | --list",
+    static let provision = Command(name: "provision", arguments: "<machine> [KEY=VALUE] <recipe or script>... [--timeout <seconds>] | --list",
                                    summary: "set a machine up with recipes or your own scripts",
                                    details: """
                                    Runs each recipe in the guest, in order, and stops at the first that fails. A recipe is \
                                    one of Hyperbox's own (`hyperbox provision --list` shows them) or the path to a shell \
                                    script of yours. Scripts run as the desktop user; one with a `# admin: yes` line runs as \
                                    root, with HYPERBOX_USER set to the desktop user. Recipes are safe to run again. Each \
-                                   one gets --timeout seconds, 30 minutes unless you say.
+                                   one gets --timeout seconds, 30 minutes unless you say. KEY=VALUE sets a variable for the recipes \
+                                   after it, for the ones that take settings.
 
-                                   Example: hyperbox provision macos dock-autohide homebrew vscode ./my-setup.sh
+                                   Example: hyperbox provision macos dock-autohide homebrew vscode DOCK_APPS="Visual Studio Code" dock-apps ./my-setup.sh
                                    """) { args in
         let list = args.flag("--list")
         let timeout = try args.option("--timeout").map { value in
@@ -60,13 +61,23 @@ nonisolated extension Command {
         let target = try Target.find(try args.next("a machine"))
         let names = args.rest()
         guard !names.isEmpty else { throw Failure("say which recipes to run. `hyperbox provision --list` shows them.") }
-        let recipes = try names.map { try Recipe.find($0) }
+        // KEY=VALUE sets a variable for the recipes after it.
+        var environment: [String: String] = [:]
+        var steps: [(recipe: Recipe, environment: [String: String])] = []
+        for name in names {
+            if let equals = name.firstIndex(of: "="), !name.contains("/"), name[..<equals].allSatisfy({ $0.isLetter || $0.isNumber || $0 == "_" }) {
+                environment[String(name[..<equals])] = String(name[name.index(after: equals)...])
+            } else {
+                steps.append((try Recipe.find(name), environment))
+            }
+        }
+        let recipes = steps.map(\.recipe)
         for recipe in recipes {
             if let os = recipe.os, os != target.config.os {
                 throw Failure("\(recipe.name) is for \(os.label), and \(target.name) runs \(target.config.os.label).")
             }
         }
-        for recipe in recipes {
+        for (recipe, environment) in steps {
             print("→ \(recipe.name)\(recipe.summary.isEmpty ? "" : ": \(recipe.summary)")")
             // Before the guest's output, which goes straight to the file handles.
             fflush(stdout)
@@ -75,6 +86,7 @@ nonisolated extension Command {
             let run = recipe.text.hasPrefix("#!") ? quoted(script) : "/bin/sh \(quoted(script))"
             var command = "\(run); status=$?; rm -f \(quoted(script)); exit $status"
             if recipe.admin, let user = target.config.guestUser?.name { command = "HYPERBOX_USER=\(quoted(user)) " + command }
+            for (key, value) in environment.sorted(by: { $0.key < $1.key }) { command = "\(key)=\(quoted(value)) " + command }
             let result = try target.send(.exec, ["command": .string(command), "admin": .bool(recipe.admin), "timeout": .number(timeout)],
                                          timeout: timeout + 10)
             if let out = result["stdout"]?.string { FileHandle.standardOutput.write(Data(out.utf8)) }
