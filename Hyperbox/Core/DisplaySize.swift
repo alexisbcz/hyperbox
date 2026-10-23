@@ -2,8 +2,8 @@ import AppKit
 import Virtualization
 
 /// The guest's screen follows the window, so asking for an exact screen size, for a recording that has to be
-/// 16:9 say, means sizing the window so the screen view is that many pixels, then waiting for the guest to
-/// take the new size.
+/// 16:9 say, means sizing the window so the screen view is that many pixels, asking the guest's display for that
+/// size, then waiting for the guest to take it.
 enum DisplaySize {
     static func handle(_ params: JSONValue, machine: Machine) async throws -> JSONValue {
         guard machine.virtualMachine != nil else { throw ControlError("\(machine.config.name) isn't running. Start it first.") }
@@ -29,7 +29,12 @@ enum DisplaySize {
             frame.origin.y = min(max(frame.origin.y, visible.minY), visible.maxY - frame.height)
         }
         window.setFrame(frame, display: true, animate: false)
-        // The guest asks for the new mode on its own, within a second or two.
+        // A window that already had this size doesn't change, so the guest wouldn't hear about it (after resuming a
+        // snapshot in a new process, say, it comes back at the configured size): ask its display directly too.
+        if let display = machine.virtualMachine?.graphicsDevices.first?.displays.first {
+            try display.reconfigure(sizeInPixels: CGSize(width: width, height: height))
+        }
+        // The guest takes the new mode within a second or two.
         let deadline = Date.now.addingTimeInterval(10)
         while Date.now < deadline {
             if ScreenCapture.size(of: view) == CGSize(width: width, height: height) { break }

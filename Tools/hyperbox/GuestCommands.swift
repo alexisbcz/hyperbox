@@ -94,13 +94,18 @@ nonisolated extension Command {
         }
     }
 
-    static let display = Command(name: "display", arguments: "<machine> [<width>x<height>]",
+    static let display = Command(name: "display", arguments: "<machine> [<width>x<height>] [--keep]",
                                  summary: "show the guest's screen size, or set it in pixels",
                                  details: """
                                  The guest's screen follows its window. This sizes the window so the screen is exactly \
                                  that many pixels, for recordings and screenshots that need a set shape: 2880x1620 is \
                                  16:9 at 1440 × 810 points. It has to fit on this Mac's screen.
+
+                                 A guest resumed from a snapshot or a suspend keeps the size the machine is set to, so \
+                                 --keep makes this its size from the next boot on. Snapshots taken before then boot \
+                                 fresh instead of resuming, since the machine is no longer set up the same way.
                                  """) { args in
+        let keep = args.flag("--keep")
         let target = try Target.find(try args.next("a machine"))
         var params: [String: JSONValue] = [:]
         if let size = args.optionalNext() {
@@ -109,6 +114,11 @@ nonisolated extension Command {
             params = ["width": .number(Double(parts[0])), "height": .number(Double(parts[1]))]
         }
         try args.done()
+        if keep {
+            guard let width = params["width"]?.int, let height = params["height"]?.int else { throw Failure("--keep needs the size to keep.") }
+            _ = try target.updateConfig { $0.display.width = width; $0.display.height = height }
+            guard target.status?.state == .running else { return print("\(target.name) starts at \(width)x\(height) from now on.") }
+        }
         let result = try target.send(.display, params, timeout: 20)
         let width = result["width"]?.int ?? 0, height = result["height"]?.int ?? 0
         print("\(width)x\(height)")
