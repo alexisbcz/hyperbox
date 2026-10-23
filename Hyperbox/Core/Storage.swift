@@ -5,11 +5,7 @@ import SwiftUI
 import UniformTypeIdentifiers
 import Virtualization
 
-/// Copies of a machine that share the original's blocks until they change.
-///
-/// A copy is a new machine: new id, MAC address and machine identifier, so both can run at once and
-/// macOS guests count as two Macs. It starts without the original's snapshots and suspended state:
-/// both remember the old identity, so Virtualization wouldn't resume them in the copy anyway.
+/// Copies of a machine that share the original's blocks until they change; see `MachineCopy`.
 enum Cloner {
     static func duplicate(_ id: UUID) {
         guard let entry = Library.shared.entry(id) else { return }
@@ -17,24 +13,9 @@ enum Cloner {
         let destination = Library.newBundleURL(named: name)
         StorageActivity.shared.run("Duplicating \(entry.config.name)") { report in
             try StorageCopy.copy(entry.url, to: destination, report: report)
-            try renew(MachineBundle(url: destination), name: name)
+            try MachineCopy.renew(MachineBundle(url: destination), name: name)
             await MainActor.run { Library.shared.add(destination) }
         }
-    }
-
-    /// Makes a copied bundle a machine of its own.
-    nonisolated static func renew(_ bundle: MachineBundle, name: String) throws {
-        var config = try MachineConfig.load(from: bundle.url)
-        config.id = UUID()
-        config.name = name
-        config.created = Date()
-        config.network.macAddress = MachineConfig.Network.randomMAC()
-        let identifier = config.os == .macOS ? VZMacMachineIdentifier().dataRepresentation : VZGenericMachineIdentifier().dataRepresentation
-        try identifier.write(to: bundle.machineIdentifier)
-        for leftover in [bundle.snapshots, bundle.savedState, bundle.console] {
-            try? FileManager.default.removeItem(at: leftover)
-        }
-        try config.save(to: bundle.url)
     }
 }
 

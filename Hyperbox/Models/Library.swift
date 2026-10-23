@@ -26,6 +26,8 @@ final class Library {
     /// When each config.json last changed, so edits made in a machine's own window, or by the
     /// `hyperbox` command, show up here. Reading never writes back, so the two processes can't loop.
     @ObservationIgnored private var configDates: [UUID: Date] = [:]
+    /// When the Machines folder last changed, so machines the `hyperbox` command makes or deletes show up.
+    @ObservationIgnored private var folderDate = Date.distantPast
 
     private init() {
         Paths.ensure(Paths.machines)
@@ -69,6 +71,12 @@ final class Library {
     }
 
     private func refreshConfigs() {
+        let date = Self.modified(Paths.machines)
+        if date != folderDate {
+            folderDate = date
+            reload()
+            return
+        }
         for index in machines.indices {
             let entry = machines[index]
             let date = Self.modified(entry.bundle.config)

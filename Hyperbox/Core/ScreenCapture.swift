@@ -20,6 +20,12 @@ enum ScreenCapture {
         return image(of: surface)
     }
 
+    /// The guest's screen in pixels, without copying it.
+    static func size(of view: VZVirtualMachineView) -> CGSize? {
+        guard let layer = view.layer, let surface = surface(in: layer) else { return nil }
+        return CGSize(width: IOSurfaceGetWidth(surface), height: IOSurfaceGetHeight(surface))
+    }
+
     private static func surface(in layer: CALayer) -> IOSurfaceRef? {
         if let contents = layer.contents, CFGetTypeID(contents as CFTypeRef) == IOSurfaceGetTypeID() {
             return (contents as! IOSurfaceRef)

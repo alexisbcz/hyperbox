@@ -13,6 +13,7 @@ A native macOS app for running macOS and Linux virtual machines on your Mac.
 - **Installs in one click.** macOS comes straight from Apple, and on macOS 27 it sets itself up with no Setup Assistant. Ubuntu, Fedora and Debian install on their own and start at a signed-in desktop. You can also boot any ISO or IPSW.
 - **Feels like part of your Mac.** The clipboard works both ways, you can drop files onto a machine, Mac folders show up in the guest, and sound and the microphone pass through. The display follows the window, up to 5K, with Metal graphics in macOS guests.
 - **Snapshots in seconds**, whether the machine is running or not. They take space only as the machine changes. Quitting suspends a machine, and it picks up where it left off.
+- **Templates and recipes.** Set a machine up once, then `hyperbox clone` it for each project or experiment: clones are instant and take space only as they change. `hyperbox provision` runs setup recipes in a guest: Hyperbox's own (Homebrew, VS Code, Helium, Python, a black desktop, a Dock that hides itself, no sleep, no banners) or scripts of yours.
 - **Each machine runs as its own app**, with its own Dock icon, so a crash takes down only that machine.
 - **Port forwarding** reaches a web server or SSH in a guest through a port on your Mac. Shared folders, the network and port forwards change while the machine runs.
 - **Moves in one piece.** A machine is one file, so it copies to another Mac. Duplicates take no space until they change. It imports Parallels and UTM machines, and qcow2 and VMDK disks.
@@ -52,6 +53,10 @@ hyperbox ssh ubuntu                   # as the user Hyperbox created
 hyperbox forward ubuntu 8080:80       # then open http://localhost:8080
 hyperbox exec ubuntu -- uname -a      # run a command in the guest
 hyperbox snapshot ubuntu "clean"      # and later: hyperbox restore ubuntu clean
+hyperbox cp ./site ubuntu:~/          # files and folders, either way
+hyperbox clone macos demo             # a new machine from a template, instantly
+hyperbox provision demo vscode dock-autohide ./my-setup.sh
+hyperbox display demo 2880x1620       # an exact screen size, for recordings
 hyperbox mcp                          # the MCP server, for agents
 ```
 

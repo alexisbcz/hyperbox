@@ -162,7 +162,7 @@ nonisolated enum MCP {
 
     /// The app this tool is inside: Hyperbox.app/Contents/Resources/bin/hyperbox.
     static var appURL: URL {
-        var url = URL(fileURLWithPath: CommandLine.arguments[0]).resolvingSymlinksInPath()
+        var url = (Bundle.main.executableURL ?? URL(fileURLWithPath: CommandLine.arguments[0])).resolvingSymlinksInPath()
         for _ in 0..<4 { url.deleteLastPathComponent() }
         return url
     }

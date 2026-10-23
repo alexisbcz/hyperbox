@@ -40,6 +40,15 @@ nonisolated enum ControlMethod: String, CaseIterable, Sendable {
     case stopRecording
     /// Rereads config.json and applies what can change while running (name, shared folders, network, ports).
     case reloadConfig
+    /// Writes a file in the guest, through its agent. Params: `path` (`~` is the desktop user's home), `data`
+    /// (base64), `append` (Bool), `mode` (Int). → `{"path": String}`
+    case writeFile
+    /// Reads a file in the guest. Params: `path`, `offset`, `length`. → `{"data": base64, "size": Int}`, the
+    /// whole file's size.
+    case readFile
+    /// Sizes the window so the guest's screen is `width` × `height` pixels, for recordings that need an exact
+    /// shape. Without params, it only answers. → `{"width": Int, "height": Int}`, the screen's size now.
+    case display
 }
 
 /// A running machine's state, written to `Paths.status(for:)` whenever it changes.

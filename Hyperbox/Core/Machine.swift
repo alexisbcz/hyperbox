@@ -262,6 +262,12 @@ final class Machine: NSObject {
             return .null
         case .stopRecording:
             return try await ScreenRecording.stop(self)
+        case .writeFile, .readFile:
+            guard config.agentControl else { throw ControlError("Agent control is off for \(config.name). Turn it on in the machine's settings.") }
+            noteAgentActivity()
+            return try await GuestAgent.transfer(method, params, machine: self)
+        case .display:
+            return try await DisplaySize.handle(params, machine: self)
         case .listSnapshots, .takeSnapshot, .restoreSnapshot, .deleteSnapshot:
             return try await Snapshots.handle(method, params: params, machine: self)
         }

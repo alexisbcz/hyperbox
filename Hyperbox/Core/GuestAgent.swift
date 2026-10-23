@@ -86,6 +86,29 @@ enum GuestAgent {
         ])
     }
 
+    /// Writes or reads a guest file for the control socket; see `ControlMethod.writeFile` and `.readFile`.
+    /// Pieces (`append`, `offset`) need agent version 2, which older agents would silently ignore.
+    static func transfer(_ method: ControlMethod, _ params: JSONValue, machine: Machine) async throws -> JSONValue {
+        guard let path = params["path"]?.string, !path.isEmpty else { throw ControlError("\(method.rawValue) needs a path.") }
+        let pieces = params["append"]?.bool == true || params["offset"] != nil || params["length"] != nil
+        if pieces, (await ping(machine))?["version"]?.int ?? 1 < 2 {
+            throw ControlError("The agent in \(machine.config.name) is too old to move files in pieces. Update Hyperbox Tools in the guest.")
+        }
+        var request: [String: JSONValue] = ["path": .string(path)]
+        if method == .writeFile {
+            guard let data = params["data"]?.string else { throw ControlError("writeFile needs data, as base64.") }
+            request["op"] = "writeFile"
+            request["data"] = .string(data)
+            for key in ["append", "mode"] { if let value = params[key] { request[key] = value } }
+            let reply = try await self.request(request, machine: machine, timeout: 60)
+            return ["path": reply["path"] ?? .string(path)]
+        }
+        request["op"] = "readFile"
+        for key in ["offset", "length"] { if let value = params[key] { request[key] = value } }
+        let reply = try await self.request(request, machine: machine, timeout: 60)
+        return ["data": reply["data"] ?? "", "size": reply["size"] ?? .null]
+    }
+
     /// Whether the agent answers, and has finished any first-boot setup.
     static func ping(_ machine: Machine) async -> JSONValue? {
         try? await request(["op": "ping"], machine: machine, timeout: 5)

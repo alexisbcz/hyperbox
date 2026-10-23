@@ -12,7 +12,9 @@ let commands: [Command] = [
     // Snapshots: SnapshotCommands.swift
     .snapshot, .snapshots, .restore, .deleteSnapshot,
     // In the guest: GuestCommands.swift
-    .exec, .screenshot, .record,
+    .exec, .copy, .screenshot, .record, .display,
+    // Templates and setup: SetupCommands.swift
+    .clone, .provision,
     // For AI agents: MCP.swift
     .mcp,
     // Docker: Containers.swift

@@ -148,7 +148,8 @@ nonisolated enum AppLauncher {
     /// The Hyperbox.app this command belongs to: it lives at Hyperbox.app/Contents/Resources/bin/hyperbox, or
     /// beside it in a build folder. Nil when it's neither, and Launch Services finds the app by bundle id.
     static var url: URL? {
-        let me = URL(fileURLWithPath: CommandLine.arguments[0]).resolvingSymlinksInPath()
+        // The executable's own path: argv[0] is only "hyperbox" when the shell found it on the PATH.
+        let me = (Bundle.main.executableURL ?? URL(fileURLWithPath: CommandLine.arguments[0])).resolvingSymlinksInPath()
         let inside = me.deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
         if inside.pathExtension == "app" { return inside }
         let beside = me.deletingLastPathComponent().appending(path: "Hyperbox.app")

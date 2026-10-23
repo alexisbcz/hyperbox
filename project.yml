@@ -28,6 +28,10 @@ targets:
           copyFiles:
             destination: resources
             subpath: guest
+      # Setup scripts for `hyperbox provision`, at Contents/Resources/recipes/.
+      - path: Tools/recipes
+        type: folder
+        buildPhase: resources
     dependencies:
       - package: Sparkle
       # The `hyperbox` command line tool, at Contents/Resources/bin/hyperbox.
