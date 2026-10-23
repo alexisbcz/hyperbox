@@ -160,7 +160,7 @@ struct MachineScreen: NSViewRepresentable {
     let machine: Machine
 
     func makeNSView(context: Context) -> VZVirtualMachineView {
-        let view = VZVirtualMachineView()
+        let view = GuestScreenView()
         view.capturesSystemKeys = true
         view.automaticallyReconfiguresDisplay = true
         view.virtualMachine = machine.virtualMachine
@@ -173,6 +173,27 @@ struct MachineScreen: NSViewRepresentable {
         if view.virtualMachine !== machine.virtualMachine { view.virtualMachine = machine.virtualMachine }
         machine.screenView = view
     }
+}
+
+/// While a machine is being filmed, only agents drive it: the Mac's own mouse and keyboard pass it by, so a hand
+/// that crosses its window by mistake doesn't move the pointer or type in the middle of a take.
+final class GuestScreenView: VZVirtualMachineView {
+    private var takesLocalInput: Bool { AgentControl.delivering || !ScreenRecording.isFilming(self) }
+
+    override func mouseMoved(with event: NSEvent) { if takesLocalInput { super.mouseMoved(with: event) } }
+    override func mouseDown(with event: NSEvent) { if takesLocalInput { super.mouseDown(with: event) } }
+    override func mouseUp(with event: NSEvent) { if takesLocalInput { super.mouseUp(with: event) } }
+    override func mouseDragged(with event: NSEvent) { if takesLocalInput { super.mouseDragged(with: event) } }
+    override func rightMouseDown(with event: NSEvent) { if takesLocalInput { super.rightMouseDown(with: event) } }
+    override func rightMouseUp(with event: NSEvent) { if takesLocalInput { super.rightMouseUp(with: event) } }
+    override func rightMouseDragged(with event: NSEvent) { if takesLocalInput { super.rightMouseDragged(with: event) } }
+    override func otherMouseDown(with event: NSEvent) { if takesLocalInput { super.otherMouseDown(with: event) } }
+    override func otherMouseUp(with event: NSEvent) { if takesLocalInput { super.otherMouseUp(with: event) } }
+    override func otherMouseDragged(with event: NSEvent) { if takesLocalInput { super.otherMouseDragged(with: event) } }
+    override func scrollWheel(with event: NSEvent) { if takesLocalInput { super.scrollWheel(with: event) } }
+    override func keyDown(with event: NSEvent) { if takesLocalInput { super.keyDown(with: event) } }
+    override func keyUp(with event: NSEvent) { if takesLocalInput { super.keyUp(with: event) } }
+    override func flagsChanged(with event: NSEvent) { if takesLocalInput { super.flagsChanged(with: event) } }
 }
 
 struct MachineCommands: Commands {

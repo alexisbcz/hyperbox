@@ -18,6 +18,11 @@ final class ScreenRecording {
         recording.begin()
     }
 
+    /// Whether this view's machine is being filmed, so the Mac's own mouse and keyboard leave it alone.
+    static func isFilming(_ view: VZVirtualMachineView) -> Bool {
+        active.values.contains { $0.view === view }
+    }
+
     static func stop(_ machine: Machine) async throws -> JSONValue {
         guard let recording = active.removeValue(forKey: machine.id) else { throw ControlError("\(machine.config.name) isn't recording.") }
         let seconds = await recording.finish()

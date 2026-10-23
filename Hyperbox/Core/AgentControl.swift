@@ -101,6 +101,8 @@ enum AgentControl {
     private(set) static var pointer: CGPoint?
     /// Whether the left button is held, for recordings to show the press.
     private(set) static var isPressed = false
+    /// True while an event of ours is on its way into the view, which takes only these while it's being filmed.
+    private(set) static var delivering = false
 
     /// A point in window coordinates as pixels of the guest's screen, `size` big, (0, 0) at the top left.
     static func pixel(of point: CGPoint, in view: VZVirtualMachineView, screen size: CGSize) -> CGPoint {
@@ -158,6 +160,8 @@ enum AgentControl {
             windowNumber: window.windowNumber, context: nil, eventNumber: 0, clickCount: clickCount, pressure: type == .leftMouseDown ? 1 : 0)
         else { return }
         if type == .leftMouseDown { isPressed = true } else if type == .leftMouseUp { isPressed = false }
+        delivering = true
+        defer { delivering = false }
         switch type {
         case .mouseMoved: view.mouseMoved(with: event)
         case .leftMouseDown: view.mouseDown(with: event)
@@ -185,6 +189,8 @@ enum AgentControl {
             cg.location = CGPoint(x: screen.x, y: (NSScreen.screens.first?.frame.height ?? 0) - screen.y)
         }
         guard let event = NSEvent(cgEvent: cg) else { return }
+        delivering = true
+        defer { delivering = false }
         view.scrollWheel(with: event)
     }
 
@@ -258,6 +264,8 @@ enum AgentControl {
         if type == .flagsChanged { cg.type = .flagsChanged }
         cg.flags = CGEventFlags(rawValue: UInt64(flags.rawValue) | Keys.deviceBits(flags))
         guard let event = NSEvent(cgEvent: cg) else { return }
+        delivering = true
+        defer { delivering = false }
         switch type {
         case .keyDown: view.keyDown(with: event)
         case .keyUp: view.keyUp(with: event)
