@@ -11,6 +11,8 @@ nonisolated struct Command: Sendable {
     let summary: String
     /// More, for `hyperbox help <command>`.
     var details = ""
+    /// Left out of `hyperbox --help`: for Hyperbox's own use.
+    var hidden = false
     let run: @Sendable (inout Arguments) throws -> Void
 
     var usage: String { "hyperbox \(name)\(arguments.isEmpty ? "" : " \(arguments)")" }

@@ -13,6 +13,8 @@ let commands: [Command] = [
     .snapshot, .snapshots, .restore, .deleteSnapshot,
     // In the guest: GuestCommands.swift
     .exec, .copy, .screenshot, .record, .display,
+    // The screen, on local models: ScreenCommands.swift
+    .check, .wait, .describe, .models, .modelServer,
     // Templates and setup: SetupCommands.swift
     .clone, .provision,
     // For AI agents: MCP.swift
@@ -22,14 +24,15 @@ let commands: [Command] = [
 ]
 
 func usage() -> String {
-    let width = commands.map(\.name.count).max() ?? 0
+    let listed = commands.filter { !$0.hidden }
+    let width = listed.map(\.name.count).max() ?? 0
     return """
     Usage: hyperbox <command> [arguments]
 
     Run and reach Hyperbox's virtual machines from a terminal.
 
     Commands:
-    \(commands.map { "  \($0.name.padding(toLength: width + 2, withPad: " ", startingAt: 0))\($0.summary)" }.joined(separator: "\n"))
+    \(listed.map { "  \($0.name.padding(toLength: width + 2, withPad: " ", startingAt: 0))\($0.summary)" }.joined(separator: "\n"))
 
     A machine is its name, its id (or the start of it), or the path to its .hyperbox bundle.
     Run `hyperbox help <command>` for a command's arguments.

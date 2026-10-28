@@ -18,6 +18,7 @@ A native macOS app for running macOS and Linux virtual machines on your Mac.
 - **Port forwarding** reaches a web server or SSH in a guest through a port on your Mac. Shared folders, the network and port forwards change while the machine runs.
 - **Moves in one piece.** A machine is one file, so it copies to another Mac. Duplicates take no space until they change. It imports Parallels and UTM machines, and qcow2 and VMDK disks.
 - **AI agents get their own machines.** Hyperbox's MCP server lets Claude Code, Codex, Cursor and others see the screen, use the machine's own keyboard and mouse, and run commands, as a user or as root. They never touch your Mac's screen, so Hyperbox needs no Accessibility or Screen Recording permission. Add it to your agents in one click under **Settings › Agents**, and turn it off for any machine.
+- **Understands screens on your Mac.** `hyperbox wait` holds a script, recipe or CI job until the guest's screen matches a question ("Is the installer finished?"), `hyperbox check` answers one with a calibrated probability, and `hyperbox describe` reads the screen out. Agents get the same as MCP tools, so they can wait without spending tokens on screenshots. It runs Liquid AI's d1-2B and LFM3-VL-2B in llama.cpp, downloaded on first use; nothing leaves your Mac. Turn it off under **Settings › Models**. The models are under the [LFM Open License v1.0](https://huggingface.co/LiquidAI/d1-2B/blob/main/LICENSE).
 - **Runs Docker containers** without Docker Desktop, using the usual `docker` command, Compose and Testcontainers. The engine starts with your first container and stops when none are left. Run `hyperbox containers setup` to point Docker at it.
 
 ## Installation
@@ -57,6 +58,9 @@ hyperbox cp ./site ubuntu:~/          # files and folders, either way
 hyperbox clone macos demo             # a new machine from a template, instantly
 hyperbox provision demo vscode dock-autohide ./my-setup.sh
 hyperbox display demo 2880x1620       # an exact screen size, for recordings
+hyperbox wait demo --until "Is the desktop showing?" --timeout 600
+hyperbox check demo "Which screen is showing?" --choice desktop --choice login --choice setup
+hyperbox describe demo "Read the error message."
 hyperbox mcp                          # the MCP server, for agents
 ```
 

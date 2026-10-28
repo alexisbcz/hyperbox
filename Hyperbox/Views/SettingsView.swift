@@ -16,6 +16,9 @@ struct SettingsView: View {
             Tab("Containers", systemImage: "shippingbox", value: "containers") {
                 ContainersSettings()
             }
+            Tab("Models", systemImage: "eye", value: "models") {
+                ModelsSettings()
+            }
         }
         .frame(width: 520)
     }

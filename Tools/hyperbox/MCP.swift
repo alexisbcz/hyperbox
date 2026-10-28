@@ -19,6 +19,8 @@ nonisolated enum MCP {
     machine is isolated from this Mac. Start with list_machines. To work on a screen: take a screenshot, \
     then click or type using x, y in that screenshot's pixels, then take another screenshot to check the \
     result. Prefer run_command for anything a shell can do; it's faster and more reliable than typing. \
+    To wait for the screen to change (an install, a boot, a page loading), use wait_for_screen, and to check \
+    a state you can put as a question, check_screen: both run on this Mac and cost no screenshots. \
     Take a snapshot before risky changes, so they can be undone with restore_snapshot.
     """
 
@@ -311,6 +313,53 @@ nonisolated enum Tools {
             var text = "\(m.config.name)'s screen, \(width)×\(height) pixels. Use x from 0 to \(width) and y from 0 to \(height) (top left is 0, 0)."
             if let sw = reply["screenWidth"]?.int, let sh = reply["screenHeight"]?.int, sw != width { text += " The guest's real resolution is \(sw)×\(sh)." }
             return [.png(png), .text(text)]
+        },
+
+        Tool(name: "check_screen", title: "Check Screen",
+             description: "Answers a question about a machine's screen on this Mac, with Liquid's d1-2B, and returns how likely it is: a yes or no question gives P(yes); with choices, it picks one; with levels, it picks a level. It takes about a second and sends you no picture, so it's far cheaper than a screenshot: use it to check a state you can put as a question (\"Is a dialog asking for a password?\", \"Which app is in front?\"), and take a screenshot when you need details or where to click. Probabilities are calibrated; treat 0.9 and up as yes. The first call downloads the model, about 1.7 GB.",
+             properties: ["machine": machine,
+                          "question": ["type": "string", "description": "A question about the screen, such as \"Is the installer finished?\""],
+                          "choices": ["type": "object", "additionalProperties": ["type": "string"], "description": "For a question with options: each option's name and what it looks like, such as {\"desktop\": \"The desktop, no windows\", \"login\": \"The login window\"}."],
+                          "levels": ["type": "array", "items": ["type": "string"], "description": "For a question of degree: 2 to 10 levels, lowest first."]],
+             required: ["question"], readOnly: true, destructive: false) { args, _ in
+            let m = try Machines.find(args["machine"]?.string)
+            try Machines.checkAgentControl(m)
+            guard let question = args["question"]?.string else { throw ToolFailure("check_screen needs a question.") }
+            var kind = QuestionKind.noul
+            if case .object(let choices)? = args["choices"], !choices.isEmpty {
+                guard choices.count >= 2 else { throw ToolFailure("Give at least two choices.") }
+                kind = .choice(choices.mapValues { $0.string ?? "" })
+            } else if let levels = args["levels"]?.array?.compactMap(\.string), !levels.isEmpty {
+                guard (2...10).contains(levels.count) else { throw ToolFailure("Give 2 to 10 levels, lowest first.") }
+                kind = .score(levels)
+            }
+            return [.text(try Screen.ask(question, kind, image: Screen.capture(m.config.id)).summary)]
+        },
+
+        Tool(name: "wait_for_screen", title: "Wait for Screen",
+             description: "Waits until a yes or no question about a machine's screen is answered yes, checking about every second on this Mac with Liquid's d1-2B, so you needn't take screenshot after screenshot while something installs, boots or loads. Returns once P(yes) reaches threshold, or after timeout seconds with the last probability.",
+             properties: ["machine": machine,
+                          "question": ["type": "string", "description": "What to wait for, as a yes or no question: \"Is the desktop showing?\""],
+                          "timeout": ["type": "number", "description": "Seconds to wait at most. Default 120, up to 600."],
+                          "threshold": ["type": "number", "description": "The P(yes) that counts as yes. Default 0.9."]],
+             required: ["question"], readOnly: true, destructive: false) { args, _ in
+            let m = try Machines.find(args["machine"]?.string)
+            try Machines.checkAgentControl(m)
+            guard let question = args["question"]?.string else { throw ToolFailure("wait_for_screen needs a question.") }
+            let timeout = min(max(args["timeout"]?.double ?? 120, 1), 600)
+            let threshold = min(max(args["threshold"]?.double ?? 0.9, 0), 1)
+            let result = try Screen.wait(until: question, threshold: threshold, timeout: timeout, interval: 1) { try Screen.capture(m.config.id) }
+            let p = String(format: "%.3f", result.probability)
+            return [.text(result.met ? "Yes, after \(Int(result.seconds)) s (P(yes) = \(p))." : "Still no after \(Int(result.seconds)) s (P(yes) = \(p)). Take a screenshot to see why.")]
+        },
+
+        Tool(name: "describe_screen", title: "Describe Screen",
+             description: "Describes a machine's screen in words, or answers what you ask about it (\"Read the error message.\"), with Liquid's LFM3-VL-2B on this Mac. Cheaper than a screenshot when words will do, but less precise: take a screenshot to find where to click. The first call downloads the model, about 1.3 GB.",
+             properties: ["machine": machine, "prompt": ["type": "string", "description": "What to ask about the screen. By default, what's showing."]],
+             required: [], readOnly: true, destructive: false) { args, _ in
+            let m = try Machines.find(args["machine"]?.string)
+            try Machines.checkAgentControl(m)
+            return [.text(try Screen.describe(image: Screen.capture(m.config.id), prompt: args["prompt"]?.string))]
         },
 
         pointerTool("click", "Click", "Clicks at x, y with the left mouse button.", button: "left", count: 1),
